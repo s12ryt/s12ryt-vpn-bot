@@ -31,6 +31,18 @@ func TestReadmeDoesNotPresentDevelopmentBuildAsProductionReady(t *testing.T) {
 	}
 }
 
+func TestReverseProxyGuideCoversSupportedTopologies(t *testing.T) {
+	contents := string(readRepositoryFile(t, filepath.Join("docs", "reverse-proxy.md")))
+	for _, required := range []string{"Nginx", "Caddy", "Cloudflare Tunnel", "127.0.0.1:35699", "TCP 443", "X-Forwarded-For", "TRUSTED_PROXY_CIDRS"} {
+		if !strings.Contains(contents, required) {
+			t.Errorf("reverse proxy guide missing %q", required)
+		}
+	}
+	if strings.Contains(contents, "/var/run/docker.sock") {
+		t.Fatal("reverse proxy guide must not expose the Docker socket")
+	}
+}
+
 func readRepositoryFile(t *testing.T, name string) []byte {
 	t.Helper()
 	contents, err := os.ReadFile(filepath.Join("..", name))
