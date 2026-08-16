@@ -7,6 +7,7 @@
 - 全域政策 RED 證明單純設定 CRUD 不足；GREEN 將資格模式、重查參數、共享配額與閒置門檻更新放在單一交易，配額／閒置狀態轉換同時寫 durable core outbox 與 audit，commit 後觸發資格重查。
 - Web owner-only「資格與配額」頁以受控表單修改政策；閒置由停用改為啟用或降低門檻時，先查受影響人數並二次確認。Vitest 7/7、ESLint、TypeScript/Vite build通過。
 - 公開 GitHub repository 已建立並推送；GitHub Actions 已實際通過 Linux race、PostgreSQL migration integration、Compose config、app/controller container build及Web驗證。
+- Release workflow TDD：要求排除 prerelease/draft、固化 sing-box tag／peeled source commit／source SHA-256，Dockerfile只在官方 default tags後加入 `with_v2ray_api`；三個 GHCR images皆建 amd64/arm64並啟用BuildKit SBOM/provenance，固定版Trivy對發布映像作HIGH/CRITICAL gate，不發布mutable latest。
 
 ## 2026-08-17：Web 使用者工作區
 

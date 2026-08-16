@@ -30,4 +30,5 @@
 - [ ] 完成 Telegram 使用者命令、inline 審批與管理操作。
 - [ ] 依 RED → GREEN → REFACTOR 完成領域、整合、Web、部署與供應鏈。
 - [x] 建立並推送公開 `s12ryt/s12ryt-vpn-bot`。
+- [x] 建立最新穩定 sing-box、應用與受限控制器的多架構 GHCR release workflow，含 SBOM、provenance 與 Trivy gate。
 - [ ] 完成 GitHub Actions、正式 GHCR release 與部署後真實驗收。
