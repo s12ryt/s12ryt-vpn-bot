@@ -35,13 +35,13 @@ func TestReleaseWorkflowBuildsTraceableMultiArchitectureImages(t *testing.T) {
 	}
 }
 
-func TestSingBoxDockerfileAddsOnlyRequiredBuildTag(t *testing.T) {
+func TestSingBoxDockerfileUsesOfficialLinuxBuildRequirements(t *testing.T) {
 	body, err := os.ReadFile("../Dockerfile.singbox")
 	if err != nil {
 		t.Fatalf("read sing-box Dockerfile: %v", err)
 	}
 	text := string(body)
-	for _, required := range []string{"release/DEFAULT_BUILD_TAGS", "with_v2ray_api", "TARGETARCH", "CGO_ENABLED=0", "USER nonroot:nonroot"} {
+	for _, required := range []string{"release/DEFAULT_BUILD_TAGS", "release/LDFLAGS", "with_purego", "with_v2ray_api", "TARGETARCH", "CGO_ENABLED=0", "USER nonroot:nonroot"} {
 		if !strings.Contains(text, required) {
 			t.Errorf("sing-box Dockerfile missing %q", required)
 		}

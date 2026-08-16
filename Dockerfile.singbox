@@ -4,9 +4,10 @@ WORKDIR /src
 COPY .release/sing-box/ ./
 RUN test -n "${TARGETARCH}" && \
     DEFAULT_TAGS="$(tr -d '\r\n' < release/DEFAULT_BUILD_TAGS)" && \
+    OFFICIAL_LDFLAGS="$(tr '\r\n' '  ' < release/LDFLAGS)" && \
     CGO_ENABLED=0 GOOS=linux GOARCH="${TARGETARCH}" \
-    go build -trimpath -buildvcs=false -tags "${DEFAULT_TAGS},with_v2ray_api" \
-      -ldflags="-s -w" -o /out/sing-box ./cmd/sing-box
+    go build -trimpath -buildvcs=false -tags "${DEFAULT_TAGS},with_purego,with_v2ray_api" \
+      -ldflags="${OFFICIAL_LDFLAGS} -s -w" -o /out/sing-box ./cmd/sing-box
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/sing-box /usr/local/bin/sing-box

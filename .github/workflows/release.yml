@@ -55,7 +55,7 @@ jobs:
           version=${{ steps.source.outputs.version }}
           source_commit=${{ steps.source.outputs.source_commit }}
           source_sha256=${{ steps.source.outputs.source_sha256 }}
-          build_tags=$(tr -d '\r\n' < .release/sing-box/release/DEFAULT_BUILD_TAGS),with_v2ray_api
+          build_tags=$(tr -d '\r\n' < .release/sing-box/release/DEFAULT_BUILD_TAGS),with_purego,with_v2ray_api
           EOF
       - name: Authenticate to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin

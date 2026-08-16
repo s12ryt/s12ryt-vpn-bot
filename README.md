@@ -15,7 +15,7 @@
 - Bot 私聊 `/vpn`、`/status` 與 QR，以及管理員 inline 核准／拒絕和查詢／撤銷／輪替命令。
 - 繁體中文響應式使用者、角色、稽核與資格／配額政策管理頁。
 - 非 root 多階段映像與 Compose 安全拓撲契約；只有受限 sidecar 可存取 Docker socket。
-- GitHub release workflow 解析最新穩定 sing-box 原始碼，只增加 `with_v2ray_api`，產生 amd64/arm64 GHCR images、SBOM、provenance與漏洞掃描。
+- GitHub release workflow 解析最新穩定 sing-box 原始碼，沿用官方 Linux build tags／linker flags與必要的 `with_purego`，另啟用 `with_v2ray_api`，產生 amd64/arm64 GHCR images、SBOM、provenance與漏洞掃描。
 
 完整需求與驗收契約見 [`agent/question.md`](agent/question.md)。
 
