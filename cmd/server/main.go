@@ -119,6 +119,7 @@ func run() error {
 	)
 	userManagementStore := postgres.NewUserManagementStore(transactionRunner, pool)
 	administratorStore := postgres.NewAdministratorStore(transactionRunner, pool)
+	auditStore := postgres.NewAuditStore(pool)
 	vpnStatusService := vpn.NewStatusService(userManagementStore, credentialStore, linkBuilder, 30*24*time.Hour)
 	adminCommands, err := telegram.NewAdminCommands(authStore, userManagementStore, provisioningStore, time.Now)
 	if err != nil {
@@ -144,6 +145,7 @@ func run() error {
 		vpnStatusService,
 		adminCommands,
 		administratorStore,
+		auditStore,
 		subscriptionService,
 		userManagementStore,
 		provisioningStore,
@@ -180,7 +182,7 @@ func run() error {
 		qualificationStore,
 		authStore,
 		botClient,
-		postgres.NewAuditStore(pool),
+		auditStore,
 		time.Now,
 	)
 	if err != nil {
