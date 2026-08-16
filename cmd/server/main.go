@@ -133,6 +133,20 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	recheckScheduler, err := buildRecheckScheduler(recheckRuntimeDependencies{
+		settings:   qualificationStore,
+		users:      qualificationStore,
+		rules:      qualificationStore,
+		members:    botClient,
+		writer:     accessStore,
+		recipients: authStore,
+		sender:     botClient,
+		now:        time.Now,
+	})
+	if err != nil {
+		return err
+	}
+	managementSettingsStore := postgres.NewManagementSettingsStore(transactionRunner, pool, recheckScheduler)
 	application, err := buildApplication(
 		signalContext,
 		configuration,
@@ -146,6 +160,7 @@ func run() error {
 		adminCommands,
 		administratorStore,
 		auditStore,
+		managementSettingsStore,
 		subscriptionService,
 		userManagementStore,
 		provisioningStore,
@@ -153,19 +168,6 @@ func run() error {
 		approvalHandler,
 		membershipHandler,
 	)
-	if err != nil {
-		return err
-	}
-	recheckScheduler, err := buildRecheckScheduler(recheckRuntimeDependencies{
-		settings:   qualificationStore,
-		users:      qualificationStore,
-		rules:      qualificationStore,
-		members:    botClient,
-		writer:     accessStore,
-		recipients: authStore,
-		sender:     botClient,
-		now:        time.Now,
-	})
 	if err != nil {
 		return err
 	}

@@ -127,6 +127,7 @@ func buildApplication(
 	adminCommands telegram.AdminCommandProvider,
 	administratorManager httpapi.AdministratorManager,
 	audits httpapi.AuditReader,
+	managementSettings httpapi.ManagementSettingsManager,
 	subscriptions httpapi.SubscriptionRenderer,
 	users httpapi.UserManager,
 	provisioning httpapi.UserProvisioningManager,
@@ -148,6 +149,9 @@ func buildApplication(
 	}
 	if audits == nil {
 		return applicationRuntime{}, errors.New("audit reader is required")
+	}
+	if managementSettings == nil {
+		return applicationRuntime{}, errors.New("management settings are required")
 	}
 	if subscriptions == nil {
 		return applicationRuntime{}, errors.New("subscription renderer is required")
@@ -198,7 +202,7 @@ func buildApplication(
 		handler: httpapi.NewApplicationHandler(readiness, loginFlow, sessions, httpapi.LoginProtection{
 			SourceIPs: httpapi.NewSourceIPResolver(configuration.TrustedProxyCIDRs),
 			Limiter:   loginLimiter,
-		}, subscriptions, users, provisioning, administratorManager, audits),
+		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings),
 		bot: telegram.NewRunner(botClient, commandHandler, nil, membershipHandlers...).WithCallbackHandler(callbacks),
 	}, nil
 }
