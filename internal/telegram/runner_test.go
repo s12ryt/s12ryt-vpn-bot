@@ -149,6 +149,12 @@ type runnerClientStub struct {
 	cancel   context.CancelFunc
 	offsets  []int64
 	sent     []sentMessage
+	photos   []sentPhoto
+}
+
+func (stub *runnerClientStub) SendPhoto(_ context.Context, chatID int64, caption string, png []byte) error {
+	stub.photos = append(stub.photos, sentPhoto{chatID: chatID, caption: caption, png: append([]byte(nil), png...)})
+	return nil
 }
 
 func (stub *runnerClientStub) GetUpdates(ctx context.Context, offset int64) ([]Update, error) {
@@ -171,6 +177,12 @@ func (stub *runnerClientStub) SendMessage(_ context.Context, chatID int64, text 
 type sentMessage struct {
 	chatID int64
 	text   string
+}
+
+type sentPhoto struct {
+	chatID  int64
+	caption string
+	png     []byte
 }
 
 type runnerHandlerStub struct {

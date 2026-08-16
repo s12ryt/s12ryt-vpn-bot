@@ -173,6 +173,42 @@ func TestVPNCommandNotifiesAdministratorsWhenApprovalIsRequired(t *testing.T) {
 	}
 }
 
+func TestStatusCommandReturnsQuotaResetAndPrivateLinkOnlyInPrivateChat(t *testing.T) {
+	resetsAt := time.Date(2026, time.August, 31, 0, 0, 0, 0, time.UTC)
+	provider := &statusProviderStub{status: vpn.Status{
+		Overview: domain.UserOverview{
+			TelegramID: 12345, Eligible: true, Status: domain.AccessStatusActive,
+			UsedBytes: 25_000_000_000, LimitBytes: 50_000_000_000,
+		},
+		SubscriptionURL: "https://vpn.example.com/sub/private",
+		ResetsAt:        resetsAt,
+	}}
+	handler := NewCommandHandler("vpn_test_bot", &fakeLoginCodeIssuer{}).WithStatus(provider)
+
+	reply, handled := handler.Handle(context.Background(), Message{ChatType: ChatPrivate, SenderID: 12345, Text: "/status@vpn_test_bot"})
+	if !handled || !strings.Contains(reply.Text, "25.00 GB / 50.00 GB") ||
+		!strings.Contains(reply.Text, "2026-08-31 00:00 UTC") || reply.QRContent != provider.status.SubscriptionURL {
+		t.Fatalf("Handle(/status) = (%#v, %v)", reply, handled)
+	}
+	if provider.calls != 1 || provider.telegramID != 12345 {
+		t.Fatalf("provider calls=%d telegramID=%d", provider.calls, provider.telegramID)
+	}
+
+	reply, handled = handler.Handle(context.Background(), Message{ChatType: ChatSupergroup, SenderID: 12345, Text: "/status"})
+	if !handled || reply.Text != "此指令只能在 Bot 私聊使用。" || provider.calls != 1 {
+		t.Fatalf("group Handle(/status) = (%#v, %v), calls=%d", reply, handled, provider.calls)
+	}
+}
+
+func TestStatusCommandUsesOpaqueFailure(t *testing.T) {
+	handler := NewCommandHandler("vpn_test_bot", &fakeLoginCodeIssuer{}).
+		WithStatus(&statusProviderStub{err: errors.New("database password=secret")})
+	reply, handled := handler.Handle(context.Background(), Message{ChatType: ChatPrivate, SenderID: 12345, Text: "/status"})
+	if !handled || reply.Text != "無法取得 VPN 狀態，請稍後再試。" || reply.QRContent != "" {
+		t.Fatalf("Handle(/status) = (%#v, %v)", reply, handled)
+	}
+}
+
 type fakeLoginCodeIssuer struct {
 	code       string
 	err        error
@@ -190,6 +226,19 @@ type fakeVPNAccessProvider struct {
 type approvalRequiredNotifierStub struct {
 	telegramID int64
 	calls      int
+}
+
+type statusProviderStub struct {
+	status     vpn.Status
+	err        error
+	telegramID int64
+	calls      int
+}
+
+func (stub *statusProviderStub) GetStatus(_ context.Context, telegramID int64) (vpn.Status, error) {
+	stub.calls++
+	stub.telegramID = telegramID
+	return stub.status, stub.err
 }
 
 func (stub *approvalRequiredNotifierStub) NotifyApprovalRequired(_ context.Context, telegramID int64) error {
