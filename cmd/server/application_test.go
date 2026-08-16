@@ -153,6 +153,19 @@ func TestBuildApplicationRejectsMissingManagementSettings(t *testing.T) {
 	}
 }
 
+func TestBuildApplicationRejectsMissingCoreSettingsManagement(t *testing.T) {
+	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
+	store := &applicationAuthStoreStub{administrator: auth.Administrator{TelegramID: 12345, Role: auth.RoleOwner, Root: true, Active: true}}
+	bot := &applicationBotClientStub{}
+	if _, err := buildApplication(
+		context.Background(), configuration, readinessStub{}, store, bot,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, &applicationAdminCommandsStub{}, &applicationAdministratorManagementStub{}, applicationAuditStub{}, applicationManagementSettingsWithoutCoreStub{},
+		applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
+	); err == nil {
+		t.Fatal("buildApplication() accepted missing core settings management")
+	}
+}
+
 type applicationAuditStub struct{}
 
 func (applicationAuditStub) List(context.Context, int64, int) ([]domain.AuditEvent, error) {
@@ -176,6 +189,33 @@ func (applicationManagementSettingsStub) EnableByActor(context.Context, int64, q
 }
 
 func (applicationManagementSettingsStub) DisableByActor(context.Context, int64, int64) error {
+	return nil
+}
+
+func (applicationManagementSettingsStub) GetCore(context.Context) (domain.CoreSettingsOverview, error) {
+	return domain.CoreSettingsOverview{}, nil
+}
+
+func (applicationManagementSettingsStub) UpdateCore(context.Context, int64, domain.CoreSettingsUpdate, time.Time) error {
+	return nil
+}
+
+type applicationManagementSettingsWithoutCoreStub struct {
+}
+
+func (applicationManagementSettingsWithoutCoreStub) Get(context.Context) (domain.ManagementSettings, []domain.QualificationRuleOverview, error) {
+	return domain.ManagementSettings{QualificationMode: domain.QualificationAny, RecheckIntervalMinutes: 60, RecheckRequestsPerSecond: 10, RecheckBatchSize: 50, QuotaLimitBytes: 50_000_000_000}, nil, nil
+}
+func (applicationManagementSettingsWithoutCoreStub) PreviewInactivity(context.Context, int, time.Time) (int64, error) {
+	return 0, nil
+}
+func (applicationManagementSettingsWithoutCoreStub) Update(context.Context, int64, domain.ManagementSettings, bool, time.Time) error {
+	return nil
+}
+func (applicationManagementSettingsWithoutCoreStub) EnableByActor(context.Context, int64, qualification.ManagedRule) error {
+	return nil
+}
+func (applicationManagementSettingsWithoutCoreStub) DisableByActor(context.Context, int64, int64) error {
 	return nil
 }
 

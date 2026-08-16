@@ -105,6 +105,7 @@ func run() error {
 		return err
 	}
 	coreSettingsStore := postgres.NewCoreSettingsStore(pool, coreSettingsCipher)
+	coreSettingsManagementStore := postgres.NewCoreSettingsManagementStore(transactionRunner, pool, coreSettingsCipher)
 	subscriptionService, err := subscription.NewService(credentialStore, coreSettingsStore, subscription.Renderer{})
 	if err != nil {
 		return err
@@ -166,7 +167,7 @@ func run() error {
 		adminCommands,
 		administratorStore,
 		auditStore,
-		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager},
+		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager, CoreSettingsManager: coreSettingsManagementStore},
 		subscriptionService,
 		userManagementStore,
 		provisioningStore,
