@@ -123,6 +123,7 @@ func buildApplication(
 	randomSource io.Reader,
 	now func() time.Time,
 	vpnAccess telegram.VPNAccessProvider,
+	vpnStatus telegram.VPNStatusProvider,
 	subscriptions httpapi.SubscriptionRenderer,
 	users httpapi.UserManager,
 	provisioning httpapi.UserProvisioningManager,
@@ -132,6 +133,9 @@ func buildApplication(
 ) (applicationRuntime, error) {
 	if vpnAccess == nil {
 		return applicationRuntime{}, errors.New("VPN access provider is required")
+	}
+	if vpnStatus == nil {
+		return applicationRuntime{}, errors.New("VPN status provider is required")
 	}
 	if subscriptions == nil {
 		return applicationRuntime{}, errors.New("subscription renderer is required")
@@ -175,6 +179,7 @@ func buildApplication(
 	loginFlow := auth.NewLoginFlow(randomSource, loginCodes, sessions)
 	commandHandler := telegram.NewCommandHandler(identity.Username, loginCodes, telegram.NewAdminLoginRateLimiter(now)).
 		WithVPNAccess(vpnAccess).
+		WithStatus(vpnStatus).
 		WithApprovalRequests(approvalRequests)
 	return applicationRuntime{
 		handler: httpapi.NewApplicationHandler(readiness, loginFlow, sessions, httpapi.LoginProtection{
