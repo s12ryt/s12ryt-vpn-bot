@@ -67,11 +67,9 @@ func NewAuthenticatedHandlerWithSubscription(readiness ReadinessProbe, login Log
 	return newHandler(readiness, login, sessions, &protection, subscriptions)
 }
 
-func NewApplicationHandler(readiness ReadinessProbe, login LoginExchanger, sessions SessionManager, protection LoginProtection, subscriptions SubscriptionRenderer, users UserManager, provisioning UserProvisioningManager, administratorManagers ...AdministratorManager) http.Handler {
+func NewApplicationHandler(readiness ReadinessProbe, login LoginExchanger, sessions SessionManager, protection LoginProtection, subscriptions SubscriptionRenderer, users UserManager, provisioning UserProvisioningManager, managementOptions ...any) http.Handler {
 	options := []any{&protection, subscriptions, users, provisioning}
-	if len(administratorManagers) > 0 {
-		options = append(options, administratorManagers[0])
-	}
+	options = append(options, managementOptions...)
 	return newHandler(readiness, login, sessions, options...)
 }
 
@@ -81,6 +79,7 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	var users UserManager
 	var provisioning UserProvisioningManager
 	var administrators AdministratorManager
+	var audits AuditReader
 	for _, option := range protections {
 		switch value := option.(type) {
 		case *LoginProtection:
@@ -93,6 +92,8 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 			provisioning = value
 		case AdministratorManager:
 			administrators = value
+		case AuditReader:
+			audits = value
 		}
 	}
 	mux := http.NewServeMux()
@@ -123,6 +124,9 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	}
 	if sessions != nil && administrators != nil {
 		registerAdministratorRoutes(mux, sessions, administrators)
+	}
+	if sessions != nil && audits != nil {
+		registerAuditRoutes(mux, sessions, audits)
 	}
 	return mux
 }
