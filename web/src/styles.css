@@ -295,6 +295,11 @@ h1 {
 .settings-grid input:focus, .settings-grid select:focus { outline: 2px solid #1d7251; outline-offset: 1px; }
 .primary-action { justify-self: start; min-height: 40px; padding: 0 16px; border: 0; border-radius: 5px; background: #176746; color: #fff; font-weight: 700; }
 .rule-list { display: grid; gap: 0; margin-top: 18px; background: #fff; border: 1px solid #d7dfdb; border-radius: 7px; overflow: hidden; }
+.rule-editor { display: grid; grid-template-columns: minmax(180px, 1fr) 160px minmax(180px, 1fr) auto; align-items: end; gap: 12px; margin-top: 18px; padding: 16px; background: #fff; border: 1px solid #d7dfdb; border-radius: 7px; }
+.rule-editor label { display: grid; gap: 7px; color: #44564d; font-size: 13px; font-weight: 650; }
+.rule-editor input, .rule-editor select { width: 100%; min-width: 0; height: 40px; padding: 0 10px; border: 1px solid #bdc9c2; border-radius: 5px; background: #fff; color: #18241e; font: inherit; }
+.rule-state { display: flex; align-items: center; gap: 8px; }
+.rule-state button { width: 32px; height: 32px; border: 1px solid #d7dfdb; border-radius: 5px; background: #fff; color: #8f2f2f; cursor: pointer; }
 .rule-list h2 { margin: 0; padding: 14px 16px; border-bottom: 1px solid #e4e9e6; font-size: 15px; }
 .rule-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 16px; border-bottom: 1px solid #e4e9e6; }
 .rule-row:last-child { border-bottom: 0; }
@@ -314,5 +319,6 @@ h1 {
   .user-row--head, .administrator-row--head { display: none; }
   .row-actions { justify-content: flex-start; }
   .audit-entry > div { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .settings-grid { grid-template-columns: 1fr; }
+.settings-grid { grid-template-columns: 1fr; }
+.rule-editor { grid-template-columns: 1fr; align-items: stretch; }
 }

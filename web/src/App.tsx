@@ -88,6 +88,9 @@ function App() {
   const [managementSettings, setManagementSettings] = useState<ManagementSettings | null>(null)
   const [savedInactivityDays, setSavedInactivityDays] = useState(0)
   const [qualificationRules, setQualificationRules] = useState<QualificationRule[]>([])
+  const [qualificationChatID, setQualificationChatID] = useState('')
+  const [qualificationChatType, setQualificationChatType] = useState<'supergroup' | 'channel'>('supergroup')
+  const [qualificationTitle, setQualificationTitle] = useState('')
   const [view, setView] = useState<WorkspaceView>('users')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -278,6 +281,38 @@ function App() {
     }
   }
 
+  async function enableQualificationRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!/^-?[1-9]\d*$/.test(qualificationChatID)) return
+    setError('')
+    try {
+      const response = await fetch(`/api/settings/qualification-rules/${qualificationChatID}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_type: qualificationChatType, title: qualificationTitle }),
+      })
+      if (!response.ok) throw new Error('rule enable failed')
+      setQualificationChatID('')
+      setQualificationTitle('')
+      await loadManagementSettings()
+    } catch {
+      setError('資格群組驗證失敗，請確認 Bot 已是管理員。')
+    }
+  }
+
+  async function disableQualificationRule(chatID: number) {
+    setError('')
+    try {
+      const response = await fetch(`/api/settings/qualification-rules/${chatID}`, {
+        method: 'DELETE', credentials: 'include', headers: { 'X-CSRF-Token': csrfToken },
+      })
+      if (!response.ok) throw new Error('rule disable failed')
+      await loadManagementSettings()
+    } catch {
+      setError('資格群組停用失敗。')
+    }
+  }
+
   async function setAdministratorRole(id: number, role: AdministratorIdentity['role']) {
     setError('')
     try {
@@ -386,9 +421,15 @@ function App() {
               </div>
               <button className="primary-action" type="submit">儲存全域設定</button>
             </form>}
+            <form className="rule-editor" onSubmit={(event) => void enableQualificationRule(event)}>
+              <label>群組 Chat ID<input aria-label="群組 Chat ID" type="text" inputMode="numeric" value={qualificationChatID} onChange={(event) => setQualificationChatID(event.target.value.replace(/(?!^-)[^0-9]/g, ''))} required /></label>
+              <label>類型<select aria-label="群組類型" value={qualificationChatType} onChange={(event) => setQualificationChatType(event.target.value as 'supergroup' | 'channel')}><option value="supergroup">Supergroup</option><option value="channel">Channel</option></select></label>
+              <label>群組名稱<input aria-label="群組名稱" type="text" maxLength={200} value={qualificationTitle} onChange={(event) => setQualificationTitle(event.target.value)} /></label>
+              <button className="primary-action" type="submit">驗證並啟用群組</button>
+            </form>
             <div className="rule-list" aria-label="資格群組清單">
               <h2>已登記群組</h2>
-              {qualificationRules.map((rule) => <div className="rule-row" key={rule.chat_id}><div><strong>{rule.title || rule.chat_id}</strong><span>{rule.chat_type} / {rule.chat_id}</span></div><span className={`status status--${rule.enabled ? 'active' : 'unclaimed'}`}>{rule.enabled ? '啟用' : '停用'}</span></div>)}
+              {qualificationRules.map((rule) => <div className="rule-row" key={rule.chat_id}><div><strong>{rule.title || rule.chat_id}</strong><span>{rule.chat_type} / {rule.chat_id}</span></div><span className="rule-state"><span className={`status status--${rule.enabled ? 'active' : 'unclaimed'}`}>{rule.enabled ? '啟用' : '停用'}</span>{rule.enabled && <button type="button" aria-label={`停用群組 ${rule.chat_id}`} title="停用群組" onClick={() => confirmAction(`停用資格群組 ${rule.chat_id}？`, () => void disableQualificationRule(rule.chat_id))}><Trash2 size={16} /></button>}</span></div>)}
               {qualificationRules.length === 0 && <p className="empty-state">尚未登記資格群組。</p>}
             </div>
           </section> : <section className="workspace">

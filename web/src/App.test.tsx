@@ -158,4 +158,28 @@ describe('管理面板登入', () => {
 			body: JSON.stringify({ qualification_mode: 'all', recheck_interval_minutes: 60, recheck_requests_per_second: 10, recheck_batch_size: 50, inactivity_threshold_days: 0, quota_limit_bytes: 50000000000, confirm_inactivity_removal: false }),
 		})
 	})
+
+	it('擁有者啟用資格群組時提交 Bot 管理員驗證契約', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const settings = { qualification_mode: 'any', recheck_interval_minutes: 60, recheck_requests_per_second: 10, recheck_batch_size: 50, inactivity_threshold_days: 0, quota_limit_bytes: 50000000000 }
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings, rules: [] }) })
+			.mockResolvedValueOnce({ ok: true })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings, rules: [{ chat_id: -1001, chat_type: 'supergroup', title: '會員群', enabled: true, bot_administrator_passed: true }] }) })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: '資格群組' }))
+		await user.type(screen.getByRole('textbox', { name: '群組 Chat ID' }), '-1001')
+		await user.type(screen.getByRole('textbox', { name: '群組名稱' }), '會員群')
+		await user.click(screen.getByRole('button', { name: '驗證並啟用群組' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/settings/qualification-rules/-1001', {
+			method: 'PUT', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ chat_type: 'supergroup', title: '會員群' }),
+		})
+		expect(await screen.findByText('會員群')).toBeInTheDocument()
+	})
 })
