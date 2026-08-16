@@ -147,6 +147,12 @@ func run() error {
 		return err
 	}
 	managementSettingsStore := postgres.NewManagementSettingsStore(transactionRunner, pool, recheckScheduler)
+	qualificationRuleStore := postgres.NewQualificationRuleStore(transactionRunner)
+	botIdentity, err := botClient.GetMe(startupContext)
+	if err != nil {
+		return err
+	}
+	qualificationRuleManager := qualification.NewRuleManager(botIdentity.ID, botClient, qualificationRuleStore, time.Now, recheckScheduler)
 	application, err := buildApplication(
 		signalContext,
 		configuration,
@@ -160,7 +166,7 @@ func run() error {
 		adminCommands,
 		administratorStore,
 		auditStore,
-		managementSettingsStore,
+		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager},
 		subscriptionService,
 		userManagementStore,
 		provisioningStore,

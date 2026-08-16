@@ -35,6 +35,11 @@ type applicationRuntime struct {
 	bot     *telegram.Runner
 }
 
+type applicationManagementSettings struct {
+	httpapi.ManagementSettingsManager
+	httpapi.QualificationRuleManager
+}
+
 type recheckRuntimeDependencies struct {
 	settings     qualification.RecheckSettingsProvider
 	users        qualification.KnownUserProvider
@@ -153,6 +158,10 @@ func buildApplication(
 	if managementSettings == nil {
 		return applicationRuntime{}, errors.New("management settings are required")
 	}
+	qualificationRules, ok := managementSettings.(httpapi.QualificationRuleManager)
+	if !ok || qualificationRules == nil {
+		return applicationRuntime{}, errors.New("qualification rule management is required")
+	}
 	if subscriptions == nil {
 		return applicationRuntime{}, errors.New("subscription renderer is required")
 	}
@@ -202,7 +211,7 @@ func buildApplication(
 		handler: httpapi.NewApplicationHandler(readiness, loginFlow, sessions, httpapi.LoginProtection{
 			SourceIPs: httpapi.NewSourceIPResolver(configuration.TrustedProxyCIDRs),
 			Limiter:   loginLimiter,
-		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings),
+		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules),
 		bot: telegram.NewRunner(botClient, commandHandler, nil, membershipHandlers...).WithCallbackHandler(callbacks),
 	}, nil
 }

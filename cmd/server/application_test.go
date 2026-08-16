@@ -171,6 +171,14 @@ func (applicationManagementSettingsStub) Update(context.Context, int64, domain.M
 	return nil
 }
 
+func (applicationManagementSettingsStub) EnableByActor(context.Context, int64, qualification.ManagedRule) error {
+	return nil
+}
+
+func (applicationManagementSettingsStub) DisableByActor(context.Context, int64, int64) error {
+	return nil
+}
+
 type applicationSubscriptionStub struct{}
 
 func (applicationSubscriptionStub) Render(context.Context, string, subscription.Format) ([]byte, error) {
