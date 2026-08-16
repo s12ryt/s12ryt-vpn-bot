@@ -113,6 +113,32 @@ func (store *UserManagementStore) FindUser(ctx context.Context, telegramID int64
 	return user, nil
 }
 
+func (store *UserManagementStore) Statistics(ctx context.Context) (domain.UserStatistics, error) {
+	if store == nil || store.database == nil {
+		return domain.UserStatistics{}, errors.New("management database is required")
+	}
+	var statistics domain.UserStatistics
+	err := store.database.QueryRow(ctx, `
+		SELECT
+			COUNT(*),
+			COUNT(*) FILTER (WHERE vpn_user.status = 'active'),
+			COUNT(*) FILTER (WHERE vpn_user.status IN ('pending_approval', 'approval_rejected')),
+			COUNT(*) FILTER (WHERE vpn_user.status = 'permanently_blocked'),
+			COALESCE(SUM(quota.used_bytes), 0)
+		FROM vpn_users AS vpn_user
+		LEFT JOIN quota_windows AS quota USING (telegram_id)`).Scan(
+		&statistics.Total, &statistics.Active, &statistics.Pending, &statistics.Blocked, &statistics.TotalUsedBytes,
+	)
+	if err != nil {
+		return domain.UserStatistics{}, fmt.Errorf("load VPN user statistics: %w", err)
+	}
+	if statistics.Total < 0 || statistics.Active < 0 || statistics.Pending < 0 || statistics.Blocked < 0 || statistics.TotalUsedBytes < 0 ||
+		statistics.Active+statistics.Pending+statistics.Blocked > statistics.Total {
+		return domain.UserStatistics{}, errors.New("persisted VPN user statistics are invalid")
+	}
+	return statistics, nil
+}
+
 func validUserOverview(user domain.UserOverview, previous int64) bool {
 	if user.TelegramID <= previous || user.Generation > uint64(^uint64(0)>>1) || user.UsedBytes < 0 || user.LimitBytes < 0 {
 		return false
