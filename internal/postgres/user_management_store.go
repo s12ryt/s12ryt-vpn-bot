@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/domain"
 )
+
+var ErrVPNUserNotFound = errors.New("VPN user not found")
 
 type UserManagementStore struct {
 	transactions TransactionRunner
@@ -71,6 +75,55 @@ func (store *UserManagementStore) ListUsers(ctx context.Context, after int64, li
 		previous = user.TelegramID
 	}
 	return users, nil
+}
+
+func (store *UserManagementStore) FindUser(ctx context.Context, telegramID int64) (domain.UserOverview, error) {
+	if store == nil || store.database == nil {
+		return domain.UserOverview{}, errors.New("management database is required")
+	}
+	if telegramID <= 0 {
+		return domain.UserOverview{}, errors.New("Telegram ID must be positive")
+	}
+	var payload []byte
+	err := store.database.QueryRow(ctx, `
+		SELECT jsonb_build_object(
+			'telegram_id', vpn_user.telegram_id,
+			'eligible', vpn_user.eligible,
+			'status', vpn_user.status,
+			'generation', vpn_user.credential_generation,
+			'period_started_at', vpn_user.period_started_at,
+			'last_vpn_activity_at', vpn_user.last_vpn_activity_at,
+			'used_bytes', COALESCE(quota.used_bytes, 0),
+			'limit_bytes', COALESCE(quota.limit_bytes, 0),
+			'quota_blocked', COALESCE(quota.blocked, FALSE)
+		)
+		FROM vpn_users AS vpn_user
+		LEFT JOIN quota_windows AS quota USING (telegram_id)
+		WHERE vpn_user.telegram_id = $1`, telegramID).Scan(&payload)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.UserOverview{}, ErrVPNUserNotFound
+	}
+	if err != nil {
+		return domain.UserOverview{}, fmt.Errorf("find VPN user: %w", err)
+	}
+	var user domain.UserOverview
+	if err := json.Unmarshal(payload, &user); err != nil || !validUserOverview(user, 0) || user.TelegramID != telegramID {
+		return domain.UserOverview{}, errors.New("persisted VPN user is invalid")
+	}
+	return user, nil
+}
+
+func validUserOverview(user domain.UserOverview, previous int64) bool {
+	if user.TelegramID <= previous || user.Generation > uint64(^uint64(0)>>1) || user.UsedBytes < 0 || user.LimitBytes < 0 {
+		return false
+	}
+	switch user.Status {
+	case domain.AccessStatusUnclaimed, domain.AccessStatusActive, domain.AccessStatusPendingApproval,
+		domain.AccessStatusApprovalRejected, domain.AccessStatusSelfService, domain.AccessStatusPermanentlyBlocked:
+		return true
+	default:
+		return false
+	}
 }
 
 func (store *UserManagementStore) Revoke(ctx context.Context, actorID, telegramID int64, mode domain.RevocationMode, now time.Time) error {
