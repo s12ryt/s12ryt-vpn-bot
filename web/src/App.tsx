@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, KeyRound, LogOut, RefreshCw, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
+import { Check, KeyRound, LogOut, RefreshCw, ScrollText, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -19,7 +19,17 @@ type AdministratorIdentity = {
   root: boolean
 }
 
-type WorkspaceView = 'users' | 'administrators'
+type AuditEvent = {
+  id: number
+  actor_telegram_id: number | null
+  action: string
+  target_type: string
+  target_id: string
+  details: Record<string, unknown>
+  created_at: string
+}
+
+type WorkspaceView = 'users' | 'administrators' | 'audit'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -57,6 +67,7 @@ function App() {
   const [users, setUsers] = useState<VPNUser[]>([])
   const [identity, setIdentity] = useState<AdministratorIdentity | null>(null)
   const [administrators, setAdministrators] = useState<AdministratorIdentity[]>([])
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
   const [view, setView] = useState<WorkspaceView>('users')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -88,6 +99,13 @@ function App() {
     if (!response.ok) throw new Error('administrators unavailable')
     const payload = await response.json() as { administrators: AdministratorIdentity[] }
     setAdministrators(Array.isArray(payload.administrators) ? payload.administrators : [])
+  }
+
+  async function loadAuditEvents() {
+    const response = await fetch('/api/audit?limit=50', { credentials: 'include' })
+    if (!response.ok) throw new Error('audit unavailable')
+    const payload = await response.json() as { events: AuditEvent[] }
+    setAuditEvents(Array.isArray(payload.events) ? payload.events : [])
   }
 
   useEffect(() => {
@@ -152,6 +170,7 @@ function App() {
       setUsers([])
       setIdentity(null)
       setAdministrators([])
+      setAuditEvents([])
       setView('users')
       setLoginCode('')
     } catch {
@@ -170,6 +189,16 @@ function App() {
       setView('administrators')
     } catch {
       setError('無法載入管理員資料。')
+    }
+  }
+
+  async function showAudit() {
+    setError('')
+    try {
+      await loadAuditEvents()
+      setView('audit')
+    } catch {
+      setError('無法載入稽核紀錄。')
     }
   }
 
@@ -217,7 +246,7 @@ function App() {
             {identity?.role === 'owner' && <button className={view === 'administrators' ? 'nav-active' : ''} type="button" onClick={() => void showAdministrators()}><UserCog size={18} />管理員</button>}
             <button type="button" disabled>資格群組</button>
             <button type="button" disabled>VPN 與網路</button>
-            <button type="button" disabled>稽核紀錄</button>
+            <button className={view === 'audit' ? 'nav-active' : ''} type="button" onClick={() => void showAudit()}><ScrollText size={18} />稽核紀錄</button>
           </nav>
           {view === 'users' ? <section className="workspace">
             <div className="workspace-heading">
@@ -246,7 +275,7 @@ function App() {
               ))}
               {users.length === 0 && <p className="empty-state">目前沒有使用者資料。</p>}
             </div>
-          </section> : <section className="workspace">
+          </section> : view === 'administrators' ? <section className="workspace">
             <div className="workspace-heading">
               <div><span className="section-label">權限控制</span><h1>管理員與角色</h1></div>
               <button className="icon-button" type="button" title="重新整理" aria-label="重新整理管理員" onClick={() => void loadAdministrators()}><RefreshCw size={18} /></button>
@@ -266,6 +295,22 @@ function App() {
                 </div>
               ))}
               {administrators.length === 0 && <p className="empty-state">目前沒有管理員資料。</p>}
+            </div>
+          </section> : <section className="workspace">
+            <div className="workspace-heading">
+              <div><span className="section-label">系統追蹤</span><h1>稽核紀錄</h1></div>
+              <button className="icon-button" type="button" title="重新整理" aria-label="重新整理稽核紀錄" onClick={() => void loadAuditEvents()}><RefreshCw size={18} /></button>
+            </div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            <div className="audit-list" aria-label="系統稽核紀錄">
+              {auditEvents.map((event) => (
+                <article className="audit-entry" key={event.id}>
+                  <div><strong>{event.action}</strong><span>{new Date(event.created_at).toISOString().replace('.000Z', 'Z')}</span></div>
+                  <div><span>{event.target_type} / {event.target_id || '-'}</span><span>操作者 {event.actor_telegram_id ?? '系統'}</span></div>
+                  <code>{JSON.stringify(event.details)}</code>
+                </article>
+              ))}
+              {auditEvents.length === 0 && <p className="empty-state">目前沒有稽核紀錄。</p>}
             </div>
           </section>}
         </div>

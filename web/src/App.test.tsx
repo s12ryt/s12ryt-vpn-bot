@@ -114,4 +114,23 @@ describe('管理面板登入', () => {
 			body: JSON.stringify({ role: 'owner' }),
 		})
 	})
+
+	it('管理者可檢視不含秘密的稽核紀錄', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'administrator', root: false }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ events: [{
+				id: 9, actor_telegram_id: 77, action: 'vpn.revoke', target_type: 'vpn_user', target_id: '12345',
+				details: { mode: 'requires_approval' }, created_at: '2026-08-17T00:00:00Z',
+			}] }) })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: '稽核紀錄' }))
+		expect(await screen.findByRole('heading', { name: '稽核紀錄' })).toBeInTheDocument()
+		expect(screen.getByText('vpn.revoke')).toBeInTheDocument()
+		expect(screen.getByText('vpn_user / 12345')).toBeInTheDocument()
+		expect(fetchMock).toHaveBeenCalledWith('/api/audit?limit=50', { credentials: 'include' })
+	})
 })

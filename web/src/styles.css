@@ -282,6 +282,12 @@ h1 {
 .row-actions { min-height: 34px; display: flex; justify-content: flex-end; gap: 6px; }
 .row-actions button { min-width: 34px; min-height: 34px; padding: 0 9px; display: grid; place-items: center; border: 1px solid #bfcac5; border-radius: 5px; color: #34443c; background: #fff; cursor: pointer; }
 .empty-state { margin: 0; padding: 36px 16px; text-align: center; color: #68776f; }
+.audit-list { display: grid; background: #fff; border: 1px solid #d7dfdb; border-radius: 7px; overflow: hidden; }
+.audit-entry { min-width: 0; padding: 14px 16px; display: grid; gap: 8px; border-bottom: 1px solid #e4e9e6; font-size: 13px; }
+.audit-entry:last-child { border-bottom: 0; }
+.audit-entry > div { display: flex; justify-content: space-between; gap: 14px; color: #596a61; }
+.audit-entry strong { color: #17201c; }
+.audit-entry code { min-width: 0; padding: 8px; overflow-wrap: anywhere; color: #34443c; background: #f5f8f6; border-radius: 4px; font-size: 12px; }
 
 @media (max-width: 760px) {
   .app-layout { display: block; min-height: 0; }
@@ -295,4 +301,5 @@ h1 {
   .administrator-row { grid-template-columns: 1fr 1fr; }
   .user-row--head, .administrator-row--head { display: none; }
   .row-actions { justify-content: flex-start; }
+  .audit-entry > div { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
