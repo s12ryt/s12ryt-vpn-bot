@@ -125,6 +125,7 @@ func buildApplication(
 	vpnAccess telegram.VPNAccessProvider,
 	vpnStatus telegram.VPNStatusProvider,
 	adminCommands telegram.AdminCommandProvider,
+	administratorManager httpapi.AdministratorManager,
 	subscriptions httpapi.SubscriptionRenderer,
 	users httpapi.UserManager,
 	provisioning httpapi.UserProvisioningManager,
@@ -140,6 +141,9 @@ func buildApplication(
 	}
 	if adminCommands == nil {
 		return applicationRuntime{}, errors.New("Telegram administrator commands are required")
+	}
+	if administratorManager == nil {
+		return applicationRuntime{}, errors.New("administrator management is required")
 	}
 	if subscriptions == nil {
 		return applicationRuntime{}, errors.New("subscription renderer is required")
@@ -190,7 +194,7 @@ func buildApplication(
 		handler: httpapi.NewApplicationHandler(readiness, loginFlow, sessions, httpapi.LoginProtection{
 			SourceIPs: httpapi.NewSourceIPResolver(configuration.TrustedProxyCIDRs),
 			Limiter:   loginLimiter,
-		}, subscriptions, users, provisioning),
+		}, subscriptions, users, provisioning, administratorManager),
 		bot: telegram.NewRunner(botClient, commandHandler, nil, membershipHandlers...).WithCallbackHandler(callbacks),
 	}, nil
 }
