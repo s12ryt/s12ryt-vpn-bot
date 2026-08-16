@@ -24,6 +24,7 @@ func TestCIWorkflowCoversRequiredVerification(t *testing.T) {
 		"npm run build",
 		"docker compose config --quiet",
 		"docker buildx build",
+		"-f Dockerfile.backup -t s12ryt-vpn-backup:ci",
 		"services:\n      postgres:",
 	} {
 		if !strings.Contains(workflow, required) {

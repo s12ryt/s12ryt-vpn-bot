@@ -103,3 +103,5 @@ jobs:
         run: docker buildx build --builder default --load -f Dockerfile -t s12ryt-vpn-bot:ci .
       - name: Build controller image contract
         run: docker buildx build --builder default --load --build-arg SINGBOX_IMAGE=singbox-ci:immutable -f Dockerfile.controller -t s12ryt-vpn-core-controller:ci .
+      - name: Build backup image
+        run: docker buildx build --builder default --load -f Dockerfile.backup -t s12ryt-vpn-backup:ci .
