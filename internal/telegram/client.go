@@ -7,12 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const maxTelegramResponseBytes = 1 << 20
+const maxTelegramPhotoBytes = 10 << 20
 
 var requiredUpdateTypes = []string{"message", "callback_query", "chat_member", "my_chat_member"}
 
@@ -144,6 +147,43 @@ func (client *Client) SendMessage(ctx context.Context, chatID int64, text string
 	return client.call(ctx, "sendMessage", payload, &result)
 }
 
+func (client *Client) SendPhoto(ctx context.Context, chatID int64, caption string, png []byte) error {
+	if client == nil || client.httpClient == nil || chatID <= 0 || strings.TrimSpace(caption) == "" || len(caption) > 1024 ||
+		len(png) < 8 || len(png) > maxTelegramPhotoBytes || !bytes.Equal(png[:8], []byte("\x89PNG\r\n\x1a\n")) {
+		return errors.New("Telegram photo input is invalid")
+	}
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if err := writer.WriteField("chat_id", strconv.FormatInt(chatID, 10)); err != nil {
+		return errors.New("encode Telegram photo request")
+	}
+	if err := writer.WriteField("caption", caption); err != nil {
+		return errors.New("encode Telegram photo request")
+	}
+	part, err := writer.CreateFormFile("photo", "subscription.png")
+	if err != nil {
+		return errors.New("encode Telegram photo request")
+	}
+	if _, err := part.Write(png); err != nil {
+		return errors.New("encode Telegram photo request")
+	}
+	if err := writer.Close(); err != nil {
+		return errors.New("encode Telegram photo request")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, client.endpoint+"sendPhoto", body)
+	if err != nil {
+		return errors.New("create Telegram request")
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return &requestError{}
+	}
+	defer response.Body.Close()
+	var result json.RawMessage
+	return decodeTelegramResponse(response, &result)
+}
+
 func (client *Client) SendApprovalRequest(ctx context.Context, administratorID, targetTelegramID int64) error {
 	if administratorID <= 0 || targetTelegramID <= 0 {
 		return errors.New("approval request identifiers are invalid")
@@ -224,6 +264,10 @@ func (client *Client) call(ctx context.Context, method string, payload, result a
 	}
 	defer response.Body.Close()
 
+	return decodeTelegramResponse(response, result)
+}
+
+func decodeTelegramResponse(response *http.Response, result any) error {
 	var envelope apiResponse[json.RawMessage]
 	if err := json.NewDecoder(io.LimitReader(response.Body, maxTelegramResponseBytes)).Decode(&envelope); err != nil {
 		return fmt.Errorf("decode Telegram response: %w", err)

@@ -1,9 +1,13 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -11,6 +15,50 @@ import (
 	"testing"
 	"time"
 )
+
+func TestClientSendPhotoUsesMultipartPNG(t *testing.T) {
+	png := []byte("\x89PNG\r\n\x1a\nimage")
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/botsecret/sendPhoto" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		mediaType, params, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
+		if err != nil || mediaType != "multipart/form-data" {
+			t.Fatalf("content type = %q, err=%v", request.Header.Get("Content-Type"), err)
+		}
+		reader := multipart.NewReader(request.Body, params["boundary"])
+		form, err := reader.ReadForm(1 << 20)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer form.RemoveAll()
+		if got := form.Value["chat_id"]; len(got) != 1 || got[0] != "9" {
+			t.Fatalf("chat_id = %#v", got)
+		}
+		if got := form.Value["caption"]; len(got) != 1 || got[0] != "status" {
+			t.Fatalf("caption = %#v", got)
+		}
+		files := form.File["photo"]
+		if len(files) != 1 || files[0].Filename != "subscription.png" {
+			t.Fatalf("files = %#v", files)
+		}
+		file, err := files[0].Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer file.Close()
+		body, _ := io.ReadAll(file)
+		if !bytes.Equal(body, png) {
+			t.Fatalf("photo = %q", body)
+		}
+		_, _ = response.Write([]byte(`{"ok":true,"result":{}}`))
+	}))
+	defer server.Close()
+	client := NewClient("secret", server.URL, server.Client())
+	if err := client.SendPhoto(context.Background(), 9, "status", png); err != nil {
+		t.Fatalf("SendPhoto() error = %v", err)
+	}
+}
 
 func TestClientGetUpdatesUsesOffsetLongPollingAndRequiredUpdateTypes(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
