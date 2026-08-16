@@ -34,7 +34,7 @@ func TestBuildApplicationConnectsTelegramLoginCodeToWebSession(t *testing.T) {
 	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
 	randomSource := bytes.NewReader(make([]byte, 256))
 
-	application, err := buildApplication(ctx, configuration, readinessStub{}, store, bot, randomSource, func() time.Time { return now }, vpnAccess, vpnStatus, applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{}, membership)
+	application, err := buildApplication(ctx, configuration, readinessStub{}, store, bot, randomSource, func() time.Time { return now }, vpnAccess, vpnStatus, &applicationAdminCommandsStub{}, applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{}, membership)
 	if err != nil {
 		t.Fatalf("buildApplication() error = %v", err)
 	}
@@ -68,7 +68,7 @@ func TestBuildApplicationRejectsMissingVPNAccessProvider(t *testing.T) {
 
 	if _, err := buildApplication(
 		context.Background(), configuration, readinessStub{}, store, bot,
-		bytes.NewReader(make([]byte, 256)), time.Now, nil, &applicationVPNStatusStub{}, applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
+		bytes.NewReader(make([]byte, 256)), time.Now, nil, &applicationVPNStatusStub{}, &applicationAdminCommandsStub{}, applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
 	); err == nil {
 		t.Fatal("buildApplication() accepted a missing VPN access provider")
 	}
@@ -81,7 +81,7 @@ func TestBuildApplicationRejectsMissingSubscriptionRenderer(t *testing.T) {
 
 	if _, err := buildApplication(
 		context.Background(), configuration, readinessStub{}, store, bot,
-		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, nil,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, &applicationAdminCommandsStub{}, nil,
 		applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
 	); err == nil {
 		t.Fatal("buildApplication() accepted a missing subscription renderer")
@@ -94,10 +94,23 @@ func TestBuildApplicationRejectsMissingVPNStatusProvider(t *testing.T) {
 	bot := &applicationBotClientStub{}
 	if _, err := buildApplication(
 		context.Background(), configuration, readinessStub{}, store, bot,
-		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, nil,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, nil, &applicationAdminCommandsStub{},
 		applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
 	); err == nil {
 		t.Fatal("buildApplication() accepted a missing VPN status provider")
+	}
+}
+
+func TestBuildApplicationRejectsMissingAdministratorCommands(t *testing.T) {
+	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
+	store := &applicationAuthStoreStub{administrator: auth.Administrator{TelegramID: 12345, Role: auth.RoleOwner, Root: true, Active: true}}
+	bot := &applicationBotClientStub{}
+	if _, err := buildApplication(
+		context.Background(), configuration, readinessStub{}, store, bot,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, nil,
+		applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
+	); err == nil {
+		t.Fatal("buildApplication() accepted missing administrator commands")
 	}
 }
 
@@ -297,6 +310,12 @@ type applicationVPNStatusStub struct{ status vpn.Status }
 
 func (stub *applicationVPNStatusStub) GetStatus(context.Context, int64) (vpn.Status, error) {
 	return stub.status, nil
+}
+
+type applicationAdminCommandsStub struct{}
+
+func (*applicationAdminCommandsStub) Execute(context.Context, int64, string) (string, error) {
+	return "admin result", nil
 }
 
 func (stub *applicationVPNAccessStub) GetOrClaim(context.Context, int64) (vpn.Access, error) {
