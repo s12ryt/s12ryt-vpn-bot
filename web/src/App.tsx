@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, KeyRound, LogOut, RefreshCw, ShieldCheck, ShieldX, UserRound, Users, X } from 'lucide-react'
+import { Check, KeyRound, LogOut, RefreshCw, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -12,6 +12,14 @@ type VPNUser = {
   limit_bytes: number
   quota_blocked: boolean
 }
+
+type AdministratorIdentity = {
+  telegram_id: number
+  role: 'owner' | 'administrator'
+  root: boolean
+}
+
+type WorkspaceView = 'users' | 'administrators'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -47,6 +55,9 @@ function App() {
   const [initialCSRFToken] = useState(currentCSRFToken)
   const [csrfToken, setCSRFToken] = useState(initialCSRFToken)
   const [users, setUsers] = useState<VPNUser[]>([])
+  const [identity, setIdentity] = useState<AdministratorIdentity | null>(null)
+  const [administrators, setAdministrators] = useState<AdministratorIdentity[]>([])
+  const [view, setView] = useState<WorkspaceView>('users')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
@@ -61,16 +72,34 @@ function App() {
     setUsers(Array.isArray(payload.users) ? payload.users : [])
   }
 
+  async function loadIdentity() {
+    const response = await fetch('/api/auth/me', { credentials: 'include' })
+    if (!response.ok) throw new Error('session invalid')
+    const payload = await response.json() as AdministratorIdentity
+    if (!Number.isSafeInteger(payload.telegram_id) || payload.telegram_id <= 0 || !['owner', 'administrator'].includes(payload.role) || (payload.root && payload.role !== 'owner')) {
+      throw new Error('identity invalid')
+    }
+    setIdentity(payload)
+    return payload
+  }
+
+  async function loadAdministrators() {
+    const response = await fetch('/api/administrators', { credentials: 'include' })
+    if (!response.ok) throw new Error('administrators unavailable')
+    const payload = await response.json() as { administrators: AdministratorIdentity[] }
+    setAdministrators(Array.isArray(payload.administrators) ? payload.administrators : [])
+  }
+
   useEffect(() => {
     if (!initialCSRFToken) return
     void (async () => {
       try {
-        const identity = await fetch('/api/auth/me', { credentials: 'include' })
-        if (!identity.ok) throw new Error('session invalid')
+        await loadIdentity()
         await loadUsers()
       } catch {
         setCSRFToken('')
         setUsers([])
+        setIdentity(null)
       }
     })()
   }, [initialCSRFToken])
@@ -89,6 +118,7 @@ function App() {
       const payload = await response.json() as { csrf_token?: string }
       if (!payload.csrf_token) throw new Error('missing csrf')
       setCSRFToken(payload.csrf_token)
+      await loadIdentity()
       await loadUsers()
     } catch {
       setError('登入失敗，請重新取得登入碼。')
@@ -120,6 +150,9 @@ function App() {
       if (!response.ok) throw new Error('logout failed')
       setCSRFToken('')
       setUsers([])
+      setIdentity(null)
+      setAdministrators([])
+      setView('users')
       setLoginCode('')
     } catch {
       setError('登出失敗，請稍後再試。')
@@ -128,6 +161,44 @@ function App() {
 
   function confirmAction(message: string, action: () => void) {
     if (window.confirm(message)) action()
+  }
+
+  async function showAdministrators() {
+    setError('')
+    try {
+      await loadAdministrators()
+      setView('administrators')
+    } catch {
+      setError('無法載入管理員資料。')
+    }
+  }
+
+  async function setAdministratorRole(id: number, role: AdministratorIdentity['role']) {
+    setError('')
+    try {
+      const response = await fetch(`/api/administrators/${id}/role`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      })
+      if (!response.ok) throw new Error('role update failed')
+      await loadAdministrators()
+    } catch {
+      setError('管理員角色操作失敗。')
+    }
+  }
+
+  async function removeAdministrator(id: number) {
+    setError('')
+    try {
+      const response = await fetch(`/api/administrators/${id}`, {
+        method: 'DELETE', credentials: 'include', headers: { 'X-CSRF-Token': csrfToken },
+      })
+      if (!response.ok) throw new Error('administrator removal failed')
+      await loadAdministrators()
+    } catch {
+      setError('管理員角色操作失敗。')
+    }
   }
 
   if (csrfToken) {
@@ -142,12 +213,13 @@ function App() {
         </header>
         <div className="app-layout">
           <nav className="side-nav" aria-label="管理功能">
-            <button className="nav-active" type="button"><Users size={18} />使用者</button>
+            <button className={view === 'users' ? 'nav-active' : ''} type="button" onClick={() => setView('users')}><Users size={18} />使用者</button>
+            {identity?.role === 'owner' && <button className={view === 'administrators' ? 'nav-active' : ''} type="button" onClick={() => void showAdministrators()}><UserCog size={18} />管理員</button>}
             <button type="button" disabled>資格群組</button>
             <button type="button" disabled>VPN 與網路</button>
             <button type="button" disabled>稽核紀錄</button>
           </nav>
-          <section className="workspace">
+          {view === 'users' ? <section className="workspace">
             <div className="workspace-heading">
               <div><span className="section-label">存取控制</span><h1>使用者與流量</h1></div>
               <button className="icon-button" type="button" title="重新整理" aria-label="重新整理" onClick={() => void loadUsers()}><RefreshCw size={18} /></button>
@@ -174,7 +246,28 @@ function App() {
               ))}
               {users.length === 0 && <p className="empty-state">目前沒有使用者資料。</p>}
             </div>
-          </section>
+          </section> : <section className="workspace">
+            <div className="workspace-heading">
+              <div><span className="section-label">權限控制</span><h1>管理員與角色</h1></div>
+              <button className="icon-button" type="button" title="重新整理" aria-label="重新整理管理員" onClick={() => void loadAdministrators()}><RefreshCw size={18} /></button>
+            </div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            <div className="administrator-table" role="table" aria-label="管理員角色">
+              <div className="administrator-row administrator-row--head" role="row"><span>Telegram ID</span><span>角色</span><span>操作</span></div>
+              {administrators.map((administrator) => (
+                <div className="administrator-row" role="row" key={administrator.telegram_id}>
+                  <strong>{administrator.telegram_id}</strong>
+                  <span className={`status ${administrator.root ? 'status--active' : ''}`}>{administrator.root ? '根擁有者' : administrator.role === 'owner' ? '擁有者' : '一般管理員'}</span>
+                  <span className="row-actions">
+                    {!administrator.root && administrator.role === 'administrator' && <button type="button" aria-label={`設為擁有者 ${administrator.telegram_id}`} onClick={() => void setAdministratorRole(administrator.telegram_id, 'owner')}>設為擁有者</button>}
+                    {!administrator.root && administrator.role === 'owner' && <button type="button" aria-label={`設為一般管理員 ${administrator.telegram_id}`} onClick={() => confirmAction(`將 ${administrator.telegram_id} 降級為一般管理員？`, () => void setAdministratorRole(administrator.telegram_id, 'administrator'))}>設為管理員</button>}
+                    {!administrator.root && administrator.telegram_id !== identity?.telegram_id && <button type="button" aria-label={`移除管理員 ${administrator.telegram_id}`} title="移除管理員" onClick={() => confirmAction(`移除管理員 ${administrator.telegram_id}？`, () => void removeAdministrator(administrator.telegram_id))}><Trash2 size={17} /></button>}
+                  </span>
+                </div>
+              ))}
+              {administrators.length === 0 && <p className="empty-state">目前沒有管理員資料。</p>}
+            </div>
+          </section>}
         </div>
       </main>
     )

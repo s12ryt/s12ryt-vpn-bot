@@ -52,6 +52,7 @@ describe('管理面板登入', () => {
 		const user = userEvent.setup()
 		const fetchMock = vi.fn()
 			.mockResolvedValueOnce({ ok: true, json: async () => ({ csrf_token: 'csrf-token' }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'administrator', root: false }) })
 			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [{ telegram_id: 12345, eligible: true, status: 'pending_approval', generation: 1, period_started_at: '2026-08-01T00:00:00Z', last_vpn_activity_at: '2026-08-02T00:00:00Z', used_bytes: 25000000000, limit_bytes: 50000000000, quota_blocked: false }] }) })
 			.mockResolvedValueOnce({ ok: true })
 			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
@@ -87,5 +88,30 @@ describe('管理面板登入', () => {
 			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' },
 		})
 		expect(await screen.findByRole('heading', { name: 'VPN 管理中心' })).toBeInTheDocument()
+	})
+
+	it('擁有者可管理非根管理者角色', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ administrators: [
+				{ telegram_id: 77, role: 'owner', root: true },
+				{ telegram_id: 202, role: 'administrator', root: false },
+			] }) })
+			.mockResolvedValueOnce({ ok: true })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ administrators: [] }) })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: '管理員' }))
+		expect(await screen.findByRole('heading', { name: '管理員與角色' })).toBeInTheDocument()
+		expect(screen.getByText('根擁有者')).toBeInTheDocument()
+		await user.click(screen.getByRole('button', { name: '設為擁有者 202' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/administrators/202/role', {
+			method: 'POST', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ role: 'owner' }),
+		})
 	})
 })
