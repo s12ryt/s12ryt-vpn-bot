@@ -1,0 +1,23 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Go build and coverage output
+*.exe
+*.test
+coverage.out
+
+# Frontend dependencies and build output
+web/node_modules/
+web/dist/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Browser verification output
+.playwright-mcp/
+*-mobile.png
