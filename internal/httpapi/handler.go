@@ -67,8 +67,12 @@ func NewAuthenticatedHandlerWithSubscription(readiness ReadinessProbe, login Log
 	return newHandler(readiness, login, sessions, &protection, subscriptions)
 }
 
-func NewApplicationHandler(readiness ReadinessProbe, login LoginExchanger, sessions SessionManager, protection LoginProtection, subscriptions SubscriptionRenderer, users UserManager, provisioning UserProvisioningManager) http.Handler {
-	return newHandler(readiness, login, sessions, &protection, subscriptions, users, provisioning)
+func NewApplicationHandler(readiness ReadinessProbe, login LoginExchanger, sessions SessionManager, protection LoginProtection, subscriptions SubscriptionRenderer, users UserManager, provisioning UserProvisioningManager, administratorManagers ...AdministratorManager) http.Handler {
+	options := []any{&protection, subscriptions, users, provisioning}
+	if len(administratorManagers) > 0 {
+		options = append(options, administratorManagers[0])
+	}
+	return newHandler(readiness, login, sessions, options...)
 }
 
 func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions SessionManager, protections ...any) http.Handler {
@@ -76,6 +80,7 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	var subscriptions SubscriptionRenderer
 	var users UserManager
 	var provisioning UserProvisioningManager
+	var administrators AdministratorManager
 	for _, option := range protections {
 		switch value := option.(type) {
 		case *LoginProtection:
@@ -86,6 +91,8 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 			users = value
 		case UserProvisioningManager:
 			provisioning = value
+		case AdministratorManager:
+			administrators = value
 		}
 	}
 	mux := http.NewServeMux()
@@ -113,6 +120,9 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	}
 	if sessions != nil && users != nil && provisioning != nil {
 		registerManagementRoutes(mux, sessions, users, provisioning)
+	}
+	if sessions != nil && administrators != nil {
+		registerAdministratorRoutes(mux, sessions, administrators)
 	}
 	return mux
 }
