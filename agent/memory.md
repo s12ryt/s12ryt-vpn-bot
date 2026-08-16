@@ -2,6 +2,8 @@
 
 ## 2026-08-17：稽核、角色與全域政策
 
+- VPN 核心設定 TDD：owner-only API／Web 可管理明確 IPv4/IPv6、四協定 ports、TLS 路徑與網域、REALITY 目標／short ID、Stats endpoint及IPv4出站。REALITY 私鑰為 write-only；空值保留既有 AEAD 密文，新值先加密，資料庫與回應不含明文。
+- 核心設定更新在交易前後都以同一 sing-box generator 驗證；generator 新增 canonical 32-byte Raw Base64URL X25519 private key驗證。成功交易會寫不含秘密的 audit 並排 active users reconcile outbox。前端 RED 後 Vitest 9/9、ESLint、TypeScript/Vite build及全量 Go tests/vet均通過。
 - 稽核 TDD 完成倒序 stable cursor PostgreSQL 讀模型、RBAC HTTP API與響應式唯讀工作區；details 僅接受 JSON object，查詢不碰憑證表。
 - 角色管理以 PostgreSQL transaction advisory lock 序列化；根擁有者與最後擁有者保護在交易內重查，移除時同步撤銷登入碼與全部 Session。
 - 全域政策 RED 證明單純設定 CRUD 不足；GREEN 將資格模式、重查參數、共享配額與閒置門檻更新放在單一交易，配額／閒置狀態轉換同時寫 durable core outbox 與 audit，commit 後觸發資格重查。
