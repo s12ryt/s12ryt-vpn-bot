@@ -81,6 +81,7 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	var administrators AdministratorManager
 	var audits AuditReader
 	var managementSettings ManagementSettingsManager
+	var qualificationRules QualificationRuleManager
 	for _, option := range protections {
 		switch value := option.(type) {
 		case *LoginProtection:
@@ -97,6 +98,8 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 			audits = value
 		case ManagementSettingsManager:
 			managementSettings = value
+		case QualificationRuleManager:
+			qualificationRules = value
 		}
 	}
 	mux := http.NewServeMux()
@@ -133,6 +136,9 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	}
 	if sessions != nil && managementSettings != nil {
 		registerManagementSettingsRoutes(mux, sessions, managementSettings)
+	}
+	if sessions != nil && qualificationRules != nil {
+		registerQualificationRuleRoutes(mux, sessions, qualificationRules)
 	}
 	return mux
 }
