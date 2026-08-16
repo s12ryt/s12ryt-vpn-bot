@@ -209,6 +209,24 @@ func TestStatusCommandUsesOpaqueFailure(t *testing.T) {
 	}
 }
 
+func TestAdminCommandsArePrivateAndUseOpaqueFailure(t *testing.T) {
+	commands := &adminCommandProviderStub{reply: "管理結果"}
+	handler := NewCommandHandler("vpn_test_bot", &fakeLoginCodeIssuer{}).WithAdminCommands(commands)
+	reply, handled := handler.Handle(context.Background(), Message{ChatType: ChatPrivate, SenderID: 9001, Text: "/adminstats@vpn_test_bot"})
+	if !handled || reply.Text != "管理結果" || commands.calls != 1 {
+		t.Fatalf("private admin command = (%#v, %v), calls=%d", reply, handled, commands.calls)
+	}
+	reply, handled = handler.Handle(context.Background(), Message{ChatType: ChatSupergroup, SenderID: 9001, Text: "/adminstats"})
+	if !handled || reply.Text != "此指令只能在 Bot 私聊使用。" || commands.calls != 1 {
+		t.Fatalf("group admin command = (%#v, %v), calls=%d", reply, handled, commands.calls)
+	}
+	commands.err = errors.New("database secret")
+	reply, handled = handler.Handle(context.Background(), Message{ChatType: ChatPrivate, SenderID: 9001, Text: "/adminusers"})
+	if !handled || reply.Text != "無法執行管理指令。" {
+		t.Fatalf("failed admin command = (%#v, %v)", reply, handled)
+	}
+}
+
 type fakeLoginCodeIssuer struct {
 	code       string
 	err        error
@@ -233,6 +251,17 @@ type statusProviderStub struct {
 	err        error
 	telegramID int64
 	calls      int
+}
+
+type adminCommandProviderStub struct {
+	reply string
+	err   error
+	calls int
+}
+
+func (stub *adminCommandProviderStub) Execute(context.Context, int64, string) (string, error) {
+	stub.calls++
+	return stub.reply, stub.err
 }
 
 func (stub *statusProviderStub) GetStatus(_ context.Context, telegramID int64) (vpn.Status, error) {

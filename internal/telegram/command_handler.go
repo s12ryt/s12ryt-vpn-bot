@@ -50,6 +50,10 @@ type VPNStatusProvider interface {
 	GetStatus(ctx context.Context, telegramID int64) (vpn.Status, error)
 }
 
+type AdminCommandProvider interface {
+	Execute(ctx context.Context, actorID int64, command string) (string, error)
+}
+
 type CommandHandler struct {
 	botUsername  string
 	loginCodes   LoginCodeIssuer
@@ -57,6 +61,12 @@ type CommandHandler struct {
 	vpnAccess    VPNAccessProvider
 	approvals    ApprovalRequiredNotifier
 	status       VPNStatusProvider
+	admin        AdminCommandProvider
+}
+
+func (handler CommandHandler) WithAdminCommands(provider AdminCommandProvider) CommandHandler {
+	handler.admin = provider
+	return handler
 }
 
 func (handler CommandHandler) WithStatus(provider VPNStatusProvider) CommandHandler {
@@ -95,7 +105,24 @@ func (handler CommandHandler) Handle(ctx context.Context, message Message) (Repl
 	if handler.isStatusCommand(message.Text) {
 		return handler.handleStatus(ctx, message)
 	}
+	if command, ok := handler.adminCommand(message.Text); ok {
+		return handler.handleAdminCommand(ctx, message, command)
+	}
 	return Reply{}, false
+}
+
+func (handler CommandHandler) handleAdminCommand(ctx context.Context, message Message, command string) (Reply, bool) {
+	if message.ChatType != ChatPrivate {
+		return Reply{Text: "此指令只能在 Bot 私聊使用。"}, true
+	}
+	if handler.admin == nil {
+		return Reply{Text: "無法執行管理指令。"}, true
+	}
+	reply, err := handler.admin.Execute(ctx, message.SenderID, command)
+	if err != nil {
+		return Reply{Text: "無法執行管理指令。"}, true
+	}
+	return Reply{Text: reply}, true
 }
 
 func (handler CommandHandler) handleStatus(ctx context.Context, message Message) (Reply, bool) {
@@ -206,4 +233,20 @@ func (handler CommandHandler) isStatusCommand(text string) bool {
 		return true
 	}
 	return handler.botUsername != "" && text == "/status@"+handler.botUsername
+}
+
+func (handler CommandHandler) adminCommand(text string) (string, bool) {
+	fields := strings.Fields(text)
+	if len(fields) == 0 {
+		return "", false
+	}
+	for _, command := range []string{"/adminusers", "/adminstats", "/adminrevoke", "/adminrotate"} {
+		if fields[0] == command {
+			return strings.Join(append([]string{command}, fields[1:]...), " "), true
+		}
+		if handler.botUsername != "" && fields[0] == command+"@"+handler.botUsername {
+			return strings.Join(append([]string{command}, fields[1:]...), " "), true
+		}
+	}
+	return "", false
 }
