@@ -6,6 +6,8 @@
 - 角色管理以 PostgreSQL transaction advisory lock 序列化；根擁有者與最後擁有者保護在交易內重查，移除時同步撤銷登入碼與全部 Session。
 - 全域政策 RED 證明單純設定 CRUD 不足；GREEN 將資格模式、重查參數、共享配額與閒置門檻更新放在單一交易，配額／閒置狀態轉換同時寫 durable core outbox 與 audit，commit 後觸發資格重查。
 - Web owner-only「資格與配額」頁以受控表單修改政策；閒置由停用改為啟用或降低門檻時，先查受影響人數並二次確認。Vitest 7/7、ESLint、TypeScript/Vite build通過。
+- 資格規則 CRUD TDD：owner 透過 Web 輸入 chat ID/type/title；後端先以 Bot identity 執行 `getChatMember`，只有 administrator/creator 才在交易中啟用並寫 actor audit。停用同樣交易稽核；兩者提交後觸發全量補償重查。前端 Vitest 增至 8/8。
+- 正式 release 第二輪已成功建置並推送 amd64/arm64 sing-box，但 Trivy 正確阻擋官方 stable v1.13.18 的 16 HIGH/1 CRITICAL Go 依賴漏洞（含 grpc-go CVE-2026-33186）。依契約不忽略漏洞、不修改官方 stable dependency graph，等待上游 stable 修復。
 - 公開 GitHub repository 已建立並推送；GitHub Actions 已實際通過 Linux race、PostgreSQL migration integration、Compose config、app/controller container build及Web驗證。
 - Release workflow TDD：要求排除 prerelease/draft、固化 sing-box tag／peeled source commit／source SHA-256，Dockerfile只在官方 default tags後加入 `with_v2ray_api`；三個 GHCR images皆建 amd64/arm64並啟用BuildKit SBOM/provenance，固定版Trivy對發布映像作HIGH/CRITICAL gate，不發布mutable latest。
 - 首次 release 暴露官方 Linux naive outbound 需要 `with_purego` 且下游必須沿用 `release/LDFLAGS`；新增 RED 後修正 Dockerfile 與 metadata。第二次 multi-arch run `31977587653` 正在以 QEMU 編譯，未重複觸發。
