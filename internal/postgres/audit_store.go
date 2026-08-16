@@ -2,9 +2,13 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/domain"
 )
 
 type AuditStore struct {
@@ -13,6 +17,51 @@ type AuditStore struct {
 
 func NewAuditStore(database Database) *AuditStore {
 	return &AuditStore{database: database}
+}
+
+func (store *AuditStore) List(ctx context.Context, before int64, limit int) ([]domain.AuditEvent, error) {
+	if store == nil || store.database == nil || before < 0 || limit < 1 || limit > 200 {
+		return nil, errors.New("audit list window is invalid")
+	}
+	var payload []byte
+	err := store.database.QueryRow(ctx, `
+		SELECT COALESCE(jsonb_agg(jsonb_build_object(
+			'id', audit_event.id,
+			'actor_telegram_id', audit_event.actor_telegram_id,
+			'action', audit_event.action,
+			'target_type', audit_event.target_type,
+			'target_id', audit_event.target_id,
+			'details', audit_event.details,
+			'created_at', audit_event.created_at
+		) ORDER BY audit_event.id DESC), '[]'::jsonb)
+		FROM (
+			SELECT id, actor_telegram_id, action, target_type, target_id, details, created_at
+			FROM audit_events
+			WHERE ($1::bigint = 0 OR id < $1)
+			ORDER BY id DESC
+			LIMIT $2
+		) AS audit_event`, before, limit).Scan(&payload)
+	if err != nil {
+		return nil, fmt.Errorf("list audit events: %w", err)
+	}
+	var events []domain.AuditEvent
+	if err := json.Unmarshal(payload, &events); err != nil {
+		return nil, errors.New("decode audit events")
+	}
+	var previous int64
+	for index, event := range events {
+		if event.ID <= 0 || (index > 0 && event.ID >= previous) || event.ActorTelegramID != nil && *event.ActorTelegramID <= 0 ||
+			strings.TrimSpace(event.Action) == "" || strings.TrimSpace(event.TargetType) == "" || event.CreatedAt.IsZero() || !jsonObject(event.Details) {
+			return nil, errors.New("persisted audit event is invalid")
+		}
+		previous = event.ID
+	}
+	return events, nil
+}
+
+func jsonObject(value json.RawMessage) bool {
+	var object map[string]json.RawMessage
+	return len(value) > 0 && json.Unmarshal(value, &object) == nil && object != nil
 }
 
 func (store *AuditStore) RecordPlannedRestartNotification(ctx context.Context, attempted, failed int, at time.Time) error {
