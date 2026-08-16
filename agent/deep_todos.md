@@ -24,9 +24,10 @@
 - [x] 完成計畫重啟／核心失敗 Telegram 通知、部分送達容錯與 attempted／failed 稽核。
 - [x] 完成 sing-box Stats 採集、共享配額入帳、持久 spool／故障封閉、配額週期恢復與三格式智慧訂閱正式 HTTP 路徑。
 - [x] 完成 Web 使用者讀模型與核准／拒絕／撤銷／輪替 API，以及響應式使用者流量工作區、Session 還原與登出。
+- [x] 完成稽核讀模型、owner 角色管理、全域資格／配額／閒置政策交易與對應響應式 Web 工作區。
 - [x] 建立非 root 多階段應用／控制器映像與 Compose 安全拓撲契約；PostgreSQL 僅綁 loopback，只有 sidecar 掛載 Docker socket。
 - [x] 建立不含真實秘密的 `.env.example`，要求明確資料庫 URL、根金鑰產生方式與不可變 sing-box image digest。
 - [ ] 完成 Telegram 使用者命令、inline 審批與管理操作。
 - [ ] 依 RED → GREEN → REFACTOR 完成領域、整合、Web、部署與供應鏈。
-- [ ] 建立並推送 `s12ryt/s12ryt-vpn-bot`。
-- [ ] 完成 GitHub Actions 與部署後真實驗收。
+- [x] 建立並推送公開 `s12ryt/s12ryt-vpn-bot`。
+- [ ] 完成 GitHub Actions、正式 GHCR release 與部署後真實驗收。

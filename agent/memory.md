@@ -1,5 +1,13 @@
 # 操作與驗證紀錄
 
+## 2026-08-17：稽核、角色與全域政策
+
+- 稽核 TDD 完成倒序 stable cursor PostgreSQL 讀模型、RBAC HTTP API與響應式唯讀工作區；details 僅接受 JSON object，查詢不碰憑證表。
+- 角色管理以 PostgreSQL transaction advisory lock 序列化；根擁有者與最後擁有者保護在交易內重查，移除時同步撤銷登入碼與全部 Session。
+- 全域政策 RED 證明單純設定 CRUD 不足；GREEN 將資格模式、重查參數、共享配額與閒置門檻更新放在單一交易，配額／閒置狀態轉換同時寫 durable core outbox 與 audit，commit 後觸發資格重查。
+- Web owner-only「資格與配額」頁以受控表單修改政策；閒置由停用改為啟用或降低門檻時，先查受影響人數並二次確認。Vitest 7/7、ESLint、TypeScript/Vite build通過。
+- 公開 GitHub repository 已建立並推送；GitHub Actions 已實際通過 Linux race、PostgreSQL migration integration、Compose config、app/controller container build及Web驗證。
+
 ## 2026-08-17：Web 使用者工作區
 
 - RED：登入成功後原頁面仍停留在登入畫面；新增測試要求取得 CSRF、載入 `/api/users?limit=50`、顯示共享流量及送出核准動作。
