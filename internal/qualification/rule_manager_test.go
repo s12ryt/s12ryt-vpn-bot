@@ -64,11 +64,63 @@ func TestRuleManagerRejectsInvalidRuleBeforeTelegramRequest(t *testing.T) {
 	}
 }
 
+func TestRuleManagerEnablesAndDisablesAuditedRules(t *testing.T) {
+	now := time.Date(2026, time.August, 17, 12, 0, 0, 0, time.UTC)
+	members := &memberLookupStub{members: map[int64]telegram.ChatMember{
+		-1001: {User: telegram.User{ID: 777}, Status: "creator"},
+	}}
+	writes := &ruleWriterStub{}
+	trigger := &recheckTriggerStub{}
+	manager := NewRuleManager(777, members, writes, func() time.Time { return now }, trigger)
+	rule := ManagedRule{ChatID: -1001, ChatType: telegram.ChatChannel, Title: "公告"}
+
+	if err := manager.EnableByActor(context.Background(), 9001, rule); err != nil {
+		t.Fatalf("EnableByActor() error = %v", err)
+	}
+	if writes.actor != 9001 || writes.calls != 1 {
+		t.Fatalf("enable actor=%d calls=%d", writes.actor, writes.calls)
+	}
+	if err := manager.DisableByActor(context.Background(), 9001, -1001); err != nil {
+		t.Fatalf("DisableByActor() error = %v", err)
+	}
+	if writes.disabledActor != 9001 || writes.disabledChatID != -1001 || trigger.calls != 2 {
+		t.Fatalf("disable actor=%d chat=%d triggers=%d", writes.disabledActor, writes.disabledChatID, trigger.calls)
+	}
+}
+
+func TestRuleManagerRejectsInvalidActorBeforeDependencies(t *testing.T) {
+	members := &memberLookupStub{}
+	writes := &ruleWriterStub{}
+	manager := NewRuleManager(777, members, writes, time.Now)
+	if err := manager.EnableByActor(context.Background(), 0, ManagedRule{ChatID: -1001, ChatType: telegram.ChatSupergroup}); err == nil {
+		t.Fatal("EnableByActor() accepted zero actor")
+	}
+	if err := manager.DisableByActor(context.Background(), 0, -1001); err == nil {
+		t.Fatal("DisableByActor() accepted zero actor")
+	}
+	if len(members.calls) != 0 || writes.calls != 0 {
+		t.Fatalf("dependencies called: members=%v writes=%d", members.calls, writes.calls)
+	}
+}
+
 type ruleWriterStub struct {
-	calls      int
-	rule       ManagedRule
-	verifiedAt time.Time
-	err        error
+	calls          int
+	rule           ManagedRule
+	verifiedAt     time.Time
+	err            error
+	actor          int64
+	disabledActor  int64
+	disabledChatID int64
+}
+
+func (stub *ruleWriterStub) UpsertVerifiedByActor(ctx context.Context, actor int64, rule ManagedRule, verifiedAt time.Time) error {
+	stub.actor = actor
+	return stub.UpsertVerified(ctx, rule, verifiedAt)
+}
+
+func (stub *ruleWriterStub) DisableByActor(_ context.Context, actor, chatID int64, _ time.Time) error {
+	stub.disabledActor, stub.disabledChatID = actor, chatID
+	return stub.err
 }
 
 type recheckTriggerStub struct {

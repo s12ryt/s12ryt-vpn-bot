@@ -22,6 +22,11 @@ type VerifiedRuleWriter interface {
 	UpsertVerified(ctx context.Context, rule ManagedRule, verifiedAt time.Time) error
 }
 
+type AuditedRuleWriter interface {
+	UpsertVerifiedByActor(ctx context.Context, actorTelegramID int64, rule ManagedRule, verifiedAt time.Time) error
+	DisableByActor(ctx context.Context, actorTelegramID, chatID int64, disabledAt time.Time) error
+}
+
 type RecheckTrigger interface {
 	Trigger()
 }
@@ -46,6 +51,17 @@ func NewRuleManager(botID int64, members MemberLookup, writer VerifiedRuleWriter
 }
 
 func (manager *RuleManager) Enable(ctx context.Context, rule ManagedRule) error {
+	return manager.enable(ctx, 0, rule)
+}
+
+func (manager *RuleManager) EnableByActor(ctx context.Context, actorTelegramID int64, rule ManagedRule) error {
+	if actorTelegramID <= 0 {
+		return errors.New("qualification rule actor is invalid")
+	}
+	return manager.enable(ctx, actorTelegramID, rule)
+}
+
+func (manager *RuleManager) enable(ctx context.Context, actorTelegramID int64, rule ManagedRule) error {
 	if manager == nil || manager.botID <= 0 || manager.members == nil || manager.writer == nil {
 		return errors.New("qualification rule manager dependencies are invalid")
 	}
@@ -64,8 +80,39 @@ func (manager *RuleManager) Enable(ctx context.Context, rule ManagedRule) error 
 	if verifiedAt.IsZero() {
 		return errors.New("verification timestamp is required")
 	}
-	if err := manager.writer.UpsertVerified(ctx, rule, verifiedAt); err != nil {
-		return fmt.Errorf("save verified qualification rule: %w", err)
+	var writeErr error
+	if actorTelegramID > 0 {
+		writer, ok := manager.writer.(AuditedRuleWriter)
+		if !ok {
+			return errors.New("audited qualification rule writer is required")
+		}
+		writeErr = writer.UpsertVerifiedByActor(ctx, actorTelegramID, rule, verifiedAt)
+	} else {
+		writeErr = manager.writer.UpsertVerified(ctx, rule, verifiedAt)
+	}
+	if writeErr != nil {
+		return fmt.Errorf("save verified qualification rule: %w", writeErr)
+	}
+	if manager.trigger != nil {
+		manager.trigger.Trigger()
+	}
+	return nil
+}
+
+func (manager *RuleManager) DisableByActor(ctx context.Context, actorTelegramID, chatID int64) error {
+	if manager == nil || manager.writer == nil || actorTelegramID <= 0 || chatID == 0 {
+		return errors.New("qualification rule disable request is invalid")
+	}
+	writer, ok := manager.writer.(AuditedRuleWriter)
+	if !ok {
+		return errors.New("audited qualification rule writer is required")
+	}
+	disabledAt := manager.now()
+	if disabledAt.IsZero() {
+		return errors.New("disable timestamp is required")
+	}
+	if err := writer.DisableByActor(ctx, actorTelegramID, chatID, disabledAt); err != nil {
+		return fmt.Errorf("disable qualification rule: %w", err)
 	}
 	if manager.trigger != nil {
 		manager.trigger.Trigger()
