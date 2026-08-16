@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, KeyRound, LogOut, RefreshCw, ScrollText, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
+import { Check, KeyRound, LogOut, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -29,7 +29,24 @@ type AuditEvent = {
   created_at: string
 }
 
-type WorkspaceView = 'users' | 'administrators' | 'audit'
+type ManagementSettings = {
+  qualification_mode: 'any' | 'all'
+  recheck_interval_minutes: number
+  recheck_requests_per_second: number
+  recheck_batch_size: number
+  inactivity_threshold_days: number
+  quota_limit_bytes: number
+}
+
+type QualificationRule = {
+  chat_id: number
+  chat_type: 'supergroup' | 'channel'
+  title: string
+  enabled: boolean
+  bot_administrator_passed: boolean
+}
+
+type WorkspaceView = 'users' | 'administrators' | 'settings' | 'audit'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -68,6 +85,9 @@ function App() {
   const [identity, setIdentity] = useState<AdministratorIdentity | null>(null)
   const [administrators, setAdministrators] = useState<AdministratorIdentity[]>([])
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
+  const [managementSettings, setManagementSettings] = useState<ManagementSettings | null>(null)
+  const [savedInactivityDays, setSavedInactivityDays] = useState(0)
+  const [qualificationRules, setQualificationRules] = useState<QualificationRule[]>([])
   const [view, setView] = useState<WorkspaceView>('users')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -106,6 +126,16 @@ function App() {
     if (!response.ok) throw new Error('audit unavailable')
     const payload = await response.json() as { events: AuditEvent[] }
     setAuditEvents(Array.isArray(payload.events) ? payload.events : [])
+  }
+
+  async function loadManagementSettings() {
+    const response = await fetch('/api/settings/management', { credentials: 'include' })
+    if (!response.ok) throw new Error('settings unavailable')
+    const payload = await response.json() as { settings: ManagementSettings, rules: QualificationRule[] }
+    if (!payload.settings || !['any', 'all'].includes(payload.settings.qualification_mode)) throw new Error('settings invalid')
+    setManagementSettings(payload.settings)
+    setSavedInactivityDays(payload.settings.inactivity_threshold_days)
+    setQualificationRules(Array.isArray(payload.rules) ? payload.rules : [])
   }
 
   useEffect(() => {
@@ -171,6 +201,8 @@ function App() {
       setIdentity(null)
       setAdministrators([])
       setAuditEvents([])
+      setManagementSettings(null)
+      setQualificationRules([])
       setView('users')
       setLoginCode('')
     } catch {
@@ -199,6 +231,50 @@ function App() {
       setView('audit')
     } catch {
       setError('無法載入稽核紀錄。')
+    }
+  }
+
+  async function showManagementSettings() {
+    setError('')
+    try {
+      await loadManagementSettings()
+      setView('settings')
+    } catch {
+      setError('無法載入全域設定。')
+    }
+  }
+
+  function updateManagementSetting<K extends keyof ManagementSettings>(key: K, value: ManagementSettings[K]) {
+    setManagementSettings((current) => current ? { ...current, [key]: value } : current)
+  }
+
+  async function saveManagementSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!managementSettings) return
+    setError('')
+    let confirmInactivityRemoval = false
+    try {
+      const thresholdRemovesUsers = managementSettings.inactivity_threshold_days > 0 && (savedInactivityDays === 0 || managementSettings.inactivity_threshold_days < savedInactivityDays)
+      if (thresholdRemovesUsers) {
+        const preview = await fetch('/api/settings/management/inactivity-preview', {
+          method: 'POST', credentials: 'include',
+          headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ threshold_days: managementSettings.inactivity_threshold_days }),
+        })
+        if (!preview.ok) throw new Error('preview failed')
+        const payload = await preview.json() as { affected_users: number }
+        if (!window.confirm(`這會立即移除 ${payload.affected_users} 位閒置使用者的權限，是否繼續？`)) return
+        confirmInactivityRemoval = true
+      }
+      const response = await fetch('/api/settings/management', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...managementSettings, confirm_inactivity_removal: confirmInactivityRemoval }),
+      })
+      if (!response.ok) throw new Error('settings update failed')
+      await loadManagementSettings()
+    } catch {
+      setError('全域設定儲存失敗。')
     }
   }
 
@@ -244,7 +320,7 @@ function App() {
           <nav className="side-nav" aria-label="管理功能">
             <button className={view === 'users' ? 'nav-active' : ''} type="button" onClick={() => setView('users')}><Users size={18} />使用者</button>
             {identity?.role === 'owner' && <button className={view === 'administrators' ? 'nav-active' : ''} type="button" onClick={() => void showAdministrators()}><UserCog size={18} />管理員</button>}
-            <button type="button" disabled>資格群組</button>
+            {identity?.role === 'owner' && <button className={view === 'settings' ? 'nav-active' : ''} type="button" onClick={() => void showManagementSettings()}><Settings2 size={18} />資格群組</button>}
             <button type="button" disabled>VPN 與網路</button>
             <button className={view === 'audit' ? 'nav-active' : ''} type="button" onClick={() => void showAudit()}><ScrollText size={18} />稽核紀錄</button>
           </nav>
@@ -295,6 +371,25 @@ function App() {
                 </div>
               ))}
               {administrators.length === 0 && <p className="empty-state">目前沒有管理員資料。</p>}
+            </div>
+          </section> : view === 'settings' ? <section className="workspace">
+            <div className="workspace-heading"><div><span className="section-label">全域存取政策</span><h1>資格與配額</h1></div></div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            {managementSettings && <form className="settings-form" onSubmit={(event) => void saveManagementSettings(event)}>
+              <div className="settings-grid">
+                <label>資格符合模式<select aria-label="資格符合模式" value={managementSettings.qualification_mode} onChange={(event) => updateManagementSetting('qualification_mode', event.target.value as 'any' | 'all')}><option value="any">任一群組</option><option value="all">全部群組</option></select></label>
+                <label>重查間隔（分鐘）<input type="number" min="1" max="10080" value={managementSettings.recheck_interval_minutes} onChange={(event) => updateManagementSetting('recheck_interval_minutes', Number(event.target.value))} /></label>
+                <label>每秒查核請求<input type="number" min="1" max="20" value={managementSettings.recheck_requests_per_second} onChange={(event) => updateManagementSetting('recheck_requests_per_second', Number(event.target.value))} /></label>
+                <label>每批使用者<input type="number" min="10" max="200" value={managementSettings.recheck_batch_size} onChange={(event) => updateManagementSetting('recheck_batch_size', Number(event.target.value))} /></label>
+                <label>閒置移除天數<input type="number" min="0" value={managementSettings.inactivity_threshold_days} onChange={(event) => updateManagementSetting('inactivity_threshold_days', Number(event.target.value))} /></label>
+                <label>每期共享配額（bytes）<input type="number" min="1" value={managementSettings.quota_limit_bytes} onChange={(event) => updateManagementSetting('quota_limit_bytes', Number(event.target.value))} /></label>
+              </div>
+              <button className="primary-action" type="submit">儲存全域設定</button>
+            </form>}
+            <div className="rule-list" aria-label="資格群組清單">
+              <h2>已登記群組</h2>
+              {qualificationRules.map((rule) => <div className="rule-row" key={rule.chat_id}><div><strong>{rule.title || rule.chat_id}</strong><span>{rule.chat_type} / {rule.chat_id}</span></div><span className={`status status--${rule.enabled ? 'active' : 'unclaimed'}`}>{rule.enabled ? '啟用' : '停用'}</span></div>)}
+              {qualificationRules.length === 0 && <p className="empty-state">尚未登記資格群組。</p>}
             </div>
           </section> : <section className="workspace">
             <div className="workspace-heading">

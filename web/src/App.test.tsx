@@ -133,4 +133,29 @@ describe('管理面板登入', () => {
 		expect(screen.getByText('vpn_user / 12345')).toBeInTheDocument()
 		expect(fetchMock).toHaveBeenCalledWith('/api/audit?limit=50', { credentials: 'include' })
 	})
+
+	it('擁有者可檢視並更新資格、重查、閒置與共享配額設定', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({
+				settings: { qualification_mode: 'any', recheck_interval_minutes: 60, recheck_requests_per_second: 10, recheck_batch_size: 50, inactivity_threshold_days: 0, quota_limit_bytes: 50000000000 },
+				rules: [{ chat_id: -1001, chat_type: 'supergroup', title: '會員群', enabled: true, bot_administrator_passed: true }],
+			}) })
+			.mockResolvedValueOnce({ ok: true })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: '資格群組' }))
+		expect(await screen.findByRole('heading', { name: '資格與配額' })).toBeInTheDocument()
+		expect(screen.getByText('會員群')).toBeInTheDocument()
+		await user.selectOptions(screen.getByRole('combobox', { name: '資格符合模式' }), 'all')
+		await user.click(screen.getByRole('button', { name: '儲存全域設定' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/settings/management', {
+			method: 'PUT', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ qualification_mode: 'all', recheck_interval_minutes: 60, recheck_requests_per_second: 10, recheck_batch_size: 50, inactivity_threshold_days: 0, quota_limit_bytes: 50000000000, confirm_inactivity_removal: false }),
+		})
+	})
 })
