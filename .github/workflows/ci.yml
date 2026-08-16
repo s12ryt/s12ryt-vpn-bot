@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Test with race detector
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build Linux binaries
+        run: |
+          CGO_ENABLED=0 go build -trimpath -o /tmp/server ./cmd/server
+          CGO_ENABLED=0 go build -trimpath -o /tmp/core-controller ./cmd/core-controller
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm test -- --run
+      - run: npm run lint
+      - run: npm run build
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-bookworm
+        env:
+          POSTGRES_DB: integration
+          POSTGRES_USER: integration
+          POSTGRES_PASSWORD: integration-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U integration -d integration"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Test migrations against PostgreSQL
+        env:
+          DATABASE_URL: postgresql://integration:integration-password@127.0.0.1:5432/integration?sslmode=disable
+        run: go test -tags=integration ./integration
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Build local sing-box contract image
+        run: docker build -f deploy/ci-singbox.Dockerfile -t singbox-ci:immutable .
+      - name: Validate Compose configuration
+        env:
+          APP_MASTER_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          BOT_TOKEN: ci-placeholder
+          DATABASE_URL: postgresql://integration:integration-password@127.0.0.1:5432/integration?sslmode=disable
+          OWNER_TG_ID: "1"
+          WEB_PUBLIC_URL: https://vpn.example.com
+          POSTGRES_PASSWORD: integration-password
+          SINGBOX_IMAGE: singbox-ci:immutable
+          DOCKER_GID: "999"
+        run: docker compose config --quiet
+      - name: Build application image
+        run: docker buildx build --builder default --load -f Dockerfile -t s12ryt-vpn-bot:ci .
+      - name: Build controller image contract
+        run: docker buildx build --builder default --load --build-arg SINGBOX_IMAGE=singbox-ci:immutable -f Dockerfile.controller -t s12ryt-vpn-core-controller:ci .
