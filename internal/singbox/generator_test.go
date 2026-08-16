@@ -226,6 +226,14 @@ func TestGeneratorRejectsInvalidStatsAndCredentialFields(t *testing.T) {
 	}
 }
 
+func TestGeneratorRejectsInvalidRealityPrivateKey(t *testing.T) {
+	settings := testSettings()
+	settings.RealityPrivateKey = "not-a-canonical-x25519-key"
+	if _, err := (Generator{}).Generate(settings); err == nil {
+		t.Fatal("Generate() accepted invalid REALITY private key")
+	}
+}
+
 func testSettings() Settings {
 	return Settings{
 		ListenIPv4:         "203.0.113.10",
@@ -239,7 +247,7 @@ func testSettings() Settings {
 		TLSKeyPath:         "/run/tls/privkey.pem",
 		RealityServer:      "www.example.com",
 		RealityServerPort:  443,
-		RealityPrivateKey:  "private-key",
+		RealityPrivateKey:  base64.RawURLEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
 		RealityShortID:     "0123456789abcdef",
 		StatsListen:        "127.0.0.1:10085",
 		AllowIPv4Outbound:  false,

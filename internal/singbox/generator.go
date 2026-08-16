@@ -1,6 +1,7 @@
 package singbox
 
 import (
+	"crypto/ecdh"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -134,6 +135,13 @@ func validateAndSort(settings Settings) ([]User, error) {
 	}
 	if strings.TrimSpace(settings.RealityServer) == "" || settings.RealityServerPort == 0 || strings.TrimSpace(settings.RealityPrivateKey) == "" {
 		return nil, errors.New("REALITY handshake and private key settings are required")
+	}
+	privateKey, err := base64.RawURLEncoding.DecodeString(settings.RealityPrivateKey)
+	if err != nil || len(privateKey) != 32 || base64.RawURLEncoding.EncodeToString(privateKey) != settings.RealityPrivateKey {
+		return nil, errors.New("REALITY private key must be a canonical 32-byte Base64URL value")
+	}
+	if _, err := ecdh.X25519().NewPrivateKey(privateKey); err != nil {
+		return nil, errors.New("REALITY private key is invalid")
 	}
 	if !validShortID(settings.RealityShortID) {
 		return nil, errors.New("REALITY short ID must contain at most 16 hexadecimal characters")
