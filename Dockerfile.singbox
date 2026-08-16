@@ -1,0 +1,14 @@
+FROM golang:1.26-bookworm AS build
+ARG TARGETARCH
+WORKDIR /src
+COPY .release/sing-box/ ./
+RUN test -n "${TARGETARCH}" && \
+    DEFAULT_TAGS="$(tr -d '\r\n' < release/DEFAULT_BUILD_TAGS)" && \
+    CGO_ENABLED=0 GOOS=linux GOARCH="${TARGETARCH}" \
+    go build -trimpath -buildvcs=false -tags "${DEFAULT_TAGS},with_v2ray_api" \
+      -ldflags="-s -w" -o /out/sing-box ./cmd/sing-box
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/sing-box /usr/local/bin/sing-box
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/sing-box"]

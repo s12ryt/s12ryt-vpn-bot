@@ -1,0 +1,113 @@
+name: Release images
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: release-images
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - name: Resolve latest stable sing-box source
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .release
+          VERSION="$(curl --fail --silent --show-error https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20 | jq -r '[.[] | select(.prerelease == false and .draft == false)][0].tag_name')"
+          test -n "${VERSION}" && test "${VERSION}" != null
+          REMOTE_TAGS="$(git ls-remote https://github.com/SagerNet/sing-box.git "refs/tags/${VERSION}" "refs/tags/${VERSION}^{}")"
+          SOURCE_COMMIT="$(printf '%s\n' "${REMOTE_TAGS}" | awk '/\^\{\}$/ {print $1; found=1} END {if (!found) exit 1}')" || SOURCE_COMMIT="$(printf '%s\n' "${REMOTE_TAGS}" | awk 'NR==1 {print $1}')"
+          test "${#SOURCE_COMMIT}" -eq 40
+          curl --fail --location --silent --show-error "https://github.com/SagerNet/sing-box/archive/refs/tags/${VERSION}.tar.gz" -o .release/source.tar.gz
+          SOURCE_SHA256="$(sha256sum .release/source.tar.gz | cut -d' ' -f1)"
+          mkdir .release/sing-box
+          tar -xzf .release/source.tar.gz --strip-components=1 -C .release/sing-box
+          test -s .release/sing-box/release/DEFAULT_BUILD_TAGS
+          IMAGE_TAG="${VERSION#v}-${SOURCE_COMMIT:0:12}"
+          {
+            echo "version=${VERSION}"
+            echo "source_commit=${SOURCE_COMMIT}"
+            echo "source_sha256=${SOURCE_SHA256}"
+            echo "image_tag=${IMAGE_TAG}"
+            echo "app_tag=git-${GITHUB_SHA}"
+          } | tee -a "${GITHUB_OUTPUT}"
+      - name: Record immutable source metadata
+        run: |
+          cat > .release/source-metadata.txt <<EOF
+          version=${{ steps.source.outputs.version }}
+          source_commit=${{ steps.source.outputs.source_commit }}
+          source_sha256=${{ steps.source.outputs.source_sha256 }}
+          build_tags=$(tr -d '\r\n' < .release/sing-box/release/DEFAULT_BUILD_TAGS),with_v2ray_api
+          EOF
+      - name: Authenticate to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+      - name: Create multi-platform builder
+        run: docker buildx create --name release-builder --driver docker-container --use
+      - name: Build and push traceable sing-box image
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --sbom=true --provenance=mode=max \
+            --file Dockerfile.singbox \
+            --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box:${{ steps.source.outputs.image_tag }}" \
+            --push .
+      - name: Scan published image
+        run: |
+          go install github.com/aquasecurity/trivy/cmd/trivy@v0.66.0
+          "$(go env GOPATH)/bin/trivy" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            "ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box:${{ steps.source.outputs.image_tag }}"
+      - name: Capture immutable image digest
+        id: image
+        run: |
+          DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box:${{ steps.source.outputs.image_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          test "${DIGEST#sha256:}" != "${DIGEST}"
+          echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
+          echo "image_digest=${DIGEST}" >> .release/source-metadata.txt
+      - name: Build and push application image
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            --sbom=true --provenance=mode=max --file Dockerfile \
+            --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}" --push .
+      - name: Build and push restricted controller image
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            --sbom=true --provenance=mode=max --file Dockerfile.controller \
+            --build-arg "SINGBOX_IMAGE=ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box@${{ steps.image.outputs.digest }}" \
+            --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}" --push .
+      - name: Scan application and controller images
+        run: |
+          TRIVY="$(go env GOPATH)/bin/trivy"
+          "${TRIVY}" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}"
+          "${TRIVY}" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}"
+          APP_DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          CONTROLLER_DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          echo "application_digest=${APP_DIGEST}" >> .release/source-metadata.txt
+          echo "controller_digest=${CONTROLLER_DIGEST}" >> .release/source-metadata.txt
+      - name: Publish source and image metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_TAG="core-${{ steps.source.outputs.image_tag }}"
+          if ! gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release create "${RELEASE_TAG}" .release/source-metadata.txt \
+              --title "sing-box ${{ steps.source.outputs.version }} with V2Ray stats" \
+              --notes "Source commit: ${{ steps.source.outputs.source_commit }}\nSource SHA-256: ${{ steps.source.outputs.source_sha256 }}\nImage: ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box@${{ steps.image.outputs.digest }}"
+          fi
