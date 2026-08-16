@@ -293,6 +293,9 @@ h1 {
 .settings-grid label { display: grid; gap: 7px; color: #44564d; font-size: 13px; font-weight: 650; }
 .settings-grid input, .settings-grid select { width: 100%; min-width: 0; height: 40px; padding: 0 10px; border: 1px solid #bdc9c2; border-radius: 5px; background: #fff; color: #18241e; font: inherit; }
 .settings-grid input:focus, .settings-grid select:focus { outline: 2px solid #1d7251; outline-offset: 1px; }
+.secret-state { margin: 0; color: #38634f; font-size: 0.875rem; }
+.toggle-control { display: inline-flex; align-items: center; gap: 10px; width: fit-content; color: #263c31; font-size: 14px; font-weight: 650; }
+.toggle-control input { width: 18px; height: 18px; accent-color: #17724b; }
 .primary-action { justify-self: start; min-height: 40px; padding: 0 16px; border: 0; border-radius: 5px; background: #176746; color: #fff; font-weight: 700; }
 .rule-list { display: grid; gap: 0; margin-top: 18px; background: #fff; border: 1px solid #d7dfdb; border-radius: 7px; overflow: hidden; }
 .rule-editor { display: grid; grid-template-columns: minmax(180px, 1fr) 160px minmax(180px, 1fr) auto; align-items: end; gap: 12px; margin-top: 18px; padding: 16px; background: #fff; border: 1px solid #d7dfdb; border-radius: 7px; }

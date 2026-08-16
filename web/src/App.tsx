@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, KeyRound, LogOut, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
+import { Check, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -46,7 +46,26 @@ type QualificationRule = {
   bot_administrator_passed: boolean
 }
 
-type WorkspaceView = 'users' | 'administrators' | 'settings' | 'audit'
+type CoreSettings = {
+  configured: boolean
+  listen_ipv4: string
+  listen_ipv6: string
+  vless_port: number
+  hysteria2_port: number
+  tuic_port: number
+  anytls_port: number
+  tls_server_name: string
+  tls_certificate_path: string
+  tls_key_path: string
+  reality_server: string
+  reality_server_port: number
+  reality_short_id: string
+  stats_listen: string
+  allow_ipv4_outbound: boolean
+  has_reality_private_key: boolean
+}
+
+type WorkspaceView = 'users' | 'administrators' | 'settings' | 'core' | 'audit'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -88,6 +107,8 @@ function App() {
   const [managementSettings, setManagementSettings] = useState<ManagementSettings | null>(null)
   const [savedInactivityDays, setSavedInactivityDays] = useState(0)
   const [qualificationRules, setQualificationRules] = useState<QualificationRule[]>([])
+  const [coreSettings, setCoreSettings] = useState<CoreSettings | null>(null)
+  const [realityPrivateKey, setRealityPrivateKey] = useState('')
   const [qualificationChatID, setQualificationChatID] = useState('')
   const [qualificationChatType, setQualificationChatType] = useState<'supergroup' | 'channel'>('supergroup')
   const [qualificationTitle, setQualificationTitle] = useState('')
@@ -139,6 +160,15 @@ function App() {
     setManagementSettings(payload.settings)
     setSavedInactivityDays(payload.settings.inactivity_threshold_days)
     setQualificationRules(Array.isArray(payload.rules) ? payload.rules : [])
+  }
+
+  async function loadCoreSettings() {
+    const response = await fetch('/api/settings/core', { credentials: 'include' })
+    if (!response.ok) throw new Error('core settings unavailable')
+    const payload = await response.json() as CoreSettings
+    if (!payload || typeof payload.configured !== 'boolean' || typeof payload.has_reality_private_key !== 'boolean') throw new Error('core settings invalid')
+    setCoreSettings(payload)
+    setRealityPrivateKey('')
   }
 
   useEffect(() => {
@@ -206,6 +236,8 @@ function App() {
       setAuditEvents([])
       setManagementSettings(null)
       setQualificationRules([])
+      setCoreSettings(null)
+      setRealityPrivateKey('')
       setView('users')
       setLoginCode('')
     } catch {
@@ -244,6 +276,16 @@ function App() {
       setView('settings')
     } catch {
       setError('無法載入全域設定。')
+    }
+  }
+
+  async function showCoreSettings() {
+    setError('')
+    try {
+      await loadCoreSettings()
+      setView('core')
+    } catch {
+      setError('無法載入 VPN 核心設定。')
     }
   }
 
@@ -313,6 +355,29 @@ function App() {
     }
   }
 
+  function updateCoreSetting<K extends keyof CoreSettings>(key: K, value: CoreSettings[K]) {
+    setCoreSettings((current) => current ? { ...current, [key]: value } : current)
+  }
+
+  async function saveCoreSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!coreSettings) return
+    setError('')
+    try {
+      const { has_reality_private_key: _hasRealityPrivateKey, ...publicSettings } = coreSettings
+      void _hasRealityPrivateKey
+      const response = await fetch('/api/settings/core', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...publicSettings, reality_private_key: realityPrivateKey }),
+      })
+      if (!response.ok) throw new Error('core settings update failed')
+      await loadCoreSettings()
+    } catch {
+      setError('VPN 核心設定儲存失敗，請檢查位址、連接埠與憑證資料。')
+    }
+  }
+
   async function setAdministratorRole(id: number, role: AdministratorIdentity['role']) {
     setError('')
     try {
@@ -356,7 +421,7 @@ function App() {
             <button className={view === 'users' ? 'nav-active' : ''} type="button" onClick={() => setView('users')}><Users size={18} />使用者</button>
             {identity?.role === 'owner' && <button className={view === 'administrators' ? 'nav-active' : ''} type="button" onClick={() => void showAdministrators()}><UserCog size={18} />管理員</button>}
             {identity?.role === 'owner' && <button className={view === 'settings' ? 'nav-active' : ''} type="button" onClick={() => void showManagementSettings()}><Settings2 size={18} />資格群組</button>}
-            <button type="button" disabled>VPN 與網路</button>
+            {identity?.role === 'owner' && <button className={view === 'core' ? 'nav-active' : ''} type="button" onClick={() => void showCoreSettings()}><Network size={18} />VPN 與網路</button>}
             <button className={view === 'audit' ? 'nav-active' : ''} type="button" onClick={() => void showAudit()}><ScrollText size={18} />稽核紀錄</button>
           </nav>
           {view === 'users' ? <section className="workspace">
@@ -432,6 +497,30 @@ function App() {
               {qualificationRules.map((rule) => <div className="rule-row" key={rule.chat_id}><div><strong>{rule.title || rule.chat_id}</strong><span>{rule.chat_type} / {rule.chat_id}</span></div><span className="rule-state"><span className={`status status--${rule.enabled ? 'active' : 'unclaimed'}`}>{rule.enabled ? '啟用' : '停用'}</span>{rule.enabled && <button type="button" aria-label={`停用群組 ${rule.chat_id}`} title="停用群組" onClick={() => confirmAction(`停用資格群組 ${rule.chat_id}？`, () => void disableQualificationRule(rule.chat_id))}><Trash2 size={16} /></button>}</span></div>)}
               {qualificationRules.length === 0 && <p className="empty-state">尚未登記資格群組。</p>}
             </div>
+          </section> : view === 'core' ? <section className="workspace">
+            <div className="workspace-heading"><div><span className="section-label">核心與連線</span><h1>VPN 與網路</h1></div></div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            {coreSettings && <form className="settings-form" onSubmit={(event) => void saveCoreSettings(event)}>
+              <div className="settings-grid">
+                <label>公開 IPv4<input aria-label="公開 IPv4" value={coreSettings.listen_ipv4} onChange={(event) => updateCoreSetting('listen_ipv4', event.target.value)} placeholder="203.0.113.10" /></label>
+                <label>公開 IPv6<input aria-label="公開 IPv6" value={coreSettings.listen_ipv6} onChange={(event) => updateCoreSetting('listen_ipv6', event.target.value)} placeholder="2001:db8::10" /></label>
+                <label>VLESS TCP port<input type="number" min="1" max="65535" value={coreSettings.vless_port} onChange={(event) => updateCoreSetting('vless_port', Number(event.target.value))} /></label>
+                <label>Hysteria2 UDP port<input type="number" min="1" max="65535" value={coreSettings.hysteria2_port} onChange={(event) => updateCoreSetting('hysteria2_port', Number(event.target.value))} /></label>
+                <label>TUIC UDP port<input type="number" min="1" max="65535" value={coreSettings.tuic_port} onChange={(event) => updateCoreSetting('tuic_port', Number(event.target.value))} /></label>
+                <label>AnyTLS TCP port<input type="number" min="1" max="65535" value={coreSettings.anytls_port} onChange={(event) => updateCoreSetting('anytls_port', Number(event.target.value))} /></label>
+                <label>TLS 網域<input value={coreSettings.tls_server_name} onChange={(event) => updateCoreSetting('tls_server_name', event.target.value)} /></label>
+                <label>TLS 憑證路徑<input value={coreSettings.tls_certificate_path} onChange={(event) => updateCoreSetting('tls_certificate_path', event.target.value)} /></label>
+                <label>TLS 私鑰路徑<input value={coreSettings.tls_key_path} onChange={(event) => updateCoreSetting('tls_key_path', event.target.value)} /></label>
+                <label>REALITY 目標<input value={coreSettings.reality_server} onChange={(event) => updateCoreSetting('reality_server', event.target.value)} /></label>
+                <label>REALITY 目標 port<input type="number" min="1" max="65535" value={coreSettings.reality_server_port} onChange={(event) => updateCoreSetting('reality_server_port', Number(event.target.value))} /></label>
+                <label>REALITY short ID<input value={coreSettings.reality_short_id} onChange={(event) => updateCoreSetting('reality_short_id', event.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 16))} /></label>
+                <label>Stats 監聽<input value={coreSettings.stats_listen} onChange={(event) => updateCoreSetting('stats_listen', event.target.value)} /></label>
+                <label>REALITY 私鑰<input type="password" autoComplete="new-password" value={realityPrivateKey} onChange={(event) => setRealityPrivateKey(event.target.value)} placeholder={coreSettings.has_reality_private_key ? '留空以保留現有私鑰' : '32-byte Base64URL 私鑰'} /></label>
+              </div>
+              <p className="secret-state">{coreSettings.has_reality_private_key ? 'REALITY 私鑰已安全儲存' : '尚未設定 REALITY 私鑰'}</p>
+              <label className="toggle-control"><input aria-label="允許 IPv4 出站" type="checkbox" checked={coreSettings.allow_ipv4_outbound} onChange={(event) => updateCoreSetting('allow_ipv4_outbound', event.target.checked)} /><span>允許 IPv4 出站</span></label>
+              <button className="primary-action" type="submit">儲存 VPN 設定</button>
+            </form>}
           </section> : <section className="workspace">
             <div className="workspace-heading">
               <div><span className="section-label">系統追蹤</span><h1>稽核紀錄</h1></div>
