@@ -1,0 +1,91 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import App from './App'
+
+describe('管理面板登入', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals()
+		document.cookie = 'vpn_csrf_token=; Max-Age=0; Path=/'
+	})
+
+	it('要求管理者輸入 Telegram ID 與 Bot 私訊提供的 8 位登入碼', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(screen.getByRole('heading', { name: 'VPN 管理中心' })).toBeInTheDocument()
+		const codeInput = screen.getByRole('textbox', { name: '8 位登入碼' })
+		const telegramIDInput = screen.getByRole('textbox', { name: 'Telegram ID' })
+    const submit = screen.getByRole('button', { name: '登入管理面板' })
+    expect(submit).toBeDisabled()
+		expect(screen.getByRole('link', { name: 'AGPL-3.0 原始碼' })).toHaveAttribute('href', 'https://github.com/s12ryt/s12ryt-vpn-bot')
+
+		await user.type(telegramIDInput, '12a345')
+		await user.type(codeInput, 'Ab12!cd345')
+
+		expect(telegramIDInput).toHaveValue('12345')
+		expect(codeInput).toHaveValue('Ab12cd34')
+		expect(submit).toBeEnabled()
+	})
+
+	it('以 cookie session 提交精確登入契約且不顯示伺服器錯誤細節', async () => {
+		const user = userEvent.setup()
+		const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 })
+		vi.stubGlobal('fetch', fetchMock)
+		render(<App />)
+
+		await user.type(screen.getByRole('textbox', { name: 'Telegram ID' }), '12345')
+		await user.type(screen.getByRole('textbox', { name: '8 位登入碼' }), 'Ab12Cd34')
+		await user.click(screen.getByRole('button', { name: '登入管理面板' }))
+
+		expect(fetchMock).toHaveBeenCalledWith('/api/auth/login', {
+			method: 'POST',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ telegram_id: 12345, code: 'Ab12Cd34' }),
+		})
+		expect(await screen.findByRole('alert')).toHaveTextContent('登入失敗，請重新取得登入碼。')
+	})
+
+	it('登入後載入使用者與共享配額並可核准待審使用者', async () => {
+		const user = userEvent.setup()
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ csrf_token: 'csrf-token' }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [{ telegram_id: 12345, eligible: true, status: 'pending_approval', generation: 1, period_started_at: '2026-08-01T00:00:00Z', last_vpn_activity_at: '2026-08-02T00:00:00Z', used_bytes: 25000000000, limit_bytes: 50000000000, quota_blocked: false }] }) })
+			.mockResolvedValueOnce({ ok: true })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+		vi.stubGlobal('fetch', fetchMock)
+		render(<App />)
+		await user.type(screen.getByRole('textbox', { name: 'Telegram ID' }), '77')
+		await user.type(screen.getByRole('textbox', { name: '8 位登入碼' }), 'Ab12Cd34')
+		await user.click(screen.getByRole('button', { name: '登入管理面板' }))
+		expect(await screen.findByRole('heading', { name: '使用者與流量' })).toBeInTheDocument()
+		expect(screen.getByText('25.00 GB / 50.00 GB')).toBeInTheDocument()
+		await user.click(screen.getByRole('button', { name: '核准 12345' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/users/12345/approve', expect.objectContaining({
+			method: 'POST',
+			headers: { 'X-CSRF-Token': 'csrf-token' },
+			credentials: 'include',
+		}))
+	})
+
+	it('沿用現有安全 session 並可登出', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		expect(await screen.findByRole('heading', { name: '使用者與流量' })).toBeInTheDocument()
+		expect(screen.getByRole('link', { name: 'AGPL-3.0 原始碼' })).toHaveAttribute('href', 'https://github.com/s12ryt/s12ryt-vpn-bot')
+		await user.click(screen.getByRole('button', { name: '登出' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', {
+			method: 'POST', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' },
+		})
+		expect(await screen.findByRole('heading', { name: 'VPN 管理中心' })).toBeInTheDocument()
+	})
+})
