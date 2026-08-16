@@ -2,7 +2,7 @@
 
 通過 Telegram 群組資格驗證後，才可領取私人 VPN 訂閱的管理系統。後端使用 Go 與 PostgreSQL，管理介面使用 React/TypeScript，單一 sing-box 核心提供 VLESS REALITY、Hysteria2、TUIC 與 AnyTLS。
 
-> **開發中**：目前已有核心領域、Telegram 資格查核、管理登入、使用者核准／拒絕／撤銷／輪替、共享配額、流量故障封閉、sing-box 設定與三格式訂閱等受測試保護的程式碼。安裝精靈、ACME 自動化、備份／還原、完整設定頁與部署後端到端驗收尚未完成，請勿直接用於正式環境。
+> **開發中**：目前已有核心領域、Telegram 資格查核、管理登入、使用者核准／拒絕／撤銷／輪替、共享配額、流量故障封閉、sing-box 設定、三格式訂閱與加密備份／還原等受測試保護的程式碼。安裝精靈、ACME 自動化、完整設定頁與部署後端到端驗收尚未完成，請勿直接用於正式環境。
 
 ## 已實作範圍
 
@@ -16,6 +16,7 @@
 - 繁體中文響應式使用者、角色、稽核與資格／配額政策管理頁。
 - 非 root 多階段映像與 Compose 安全拓撲契約；只有受限 sidecar 可存取 Docker socket。
 - GitHub release workflow 解析最新穩定 sing-box 原始碼，沿用官方 Linux build tags／linker flags與必要的 `with_purego`，另啟用 `with_v2ray_api`，產生 amd64/arm64 GHCR images、SBOM、provenance與漏洞掃描。
+- 每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 加密、可調保留期與完整性驗證後還原。
 
 完整需求與驗收契約見 [`agent/question.md`](agent/question.md)。
 
@@ -23,7 +24,7 @@
 
 - 完整 Web 儀表板、資格規則新增／停用、VPN／網路、TLS／網域與備份設定頁。
 - sslip.io、DuckDNS、自有網域的 ACME 申請與續期。
-- 安裝精靈、備份／還原腳本、反向代理範例與部署後驗收腳本。
+- 安裝精靈、ACME 自動化與部署後驗收腳本。
 - release workflow 的首次真實發佈與 digest 驗收。
 
 ## 開發需求
@@ -75,8 +76,9 @@ Compose 目前包含：
 - Go 應用與 sing-box，使用 host network 以明確綁定主機 IPv4／IPv6。
 - `core-controller` sidecar，唯一可掛載 Docker socket，且只控制固定的 sing-box container。
 - 權限初始化工作，讓非 root containers 使用持久 volumes。
+- 每日執行的非 root 加密 PostgreSQL 備份 service；操作方式見 [`docs/backup-restore.md`](docs/backup-restore.md)。
 
-本機尚未具備 Docker，因此目前的 Compose 與 image 證據來自靜態契約測試；GitHub Actions 仍需在 repository 建立後實際執行。
+本機尚未具備 Docker；Compose config、image build、PostgreSQL migration 與 race detector 證據由 GitHub Actions 提供。
 
 ## 安全注意事項
 
