@@ -165,6 +165,10 @@ func buildApplicationWithOptions(ctx context.Context, configuration config.Confi
 	if audits == nil {
 		return applicationRuntime{}, errors.New("audit reader is required")
 	}
+	loginAuditor, ok := audits.(httpapi.LoginAuditor)
+	if !ok || loginAuditor == nil {
+		return applicationRuntime{}, errors.New("login audit writer is required")
+	}
 	if managementSettings == nil {
 		return applicationRuntime{}, errors.New("management settings are required")
 	}
@@ -233,6 +237,8 @@ func buildApplicationWithOptions(ctx context.Context, configuration config.Confi
 		handler: httpapi.NewApplicationHandler(readiness, loginFlow, sessions, httpapi.LoginProtection{
 			SourceIPs: httpapi.NewSourceIPResolver(configuration.TrustedProxyCIDRs),
 			Limiter:   loginLimiter,
+			Auditor:   loginAuditor,
+			Now:       now,
 		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules, coreSettings, tlsSettings, realitySearch, extraDashboard, extraBotSettings),
 		bot: telegram.NewRunner(botClient, commandHandler, nil, membershipHandlers...).WithCallbackHandler(callbacks),
 	}, nil

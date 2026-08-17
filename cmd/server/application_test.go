@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"reflect"
 	"strings"
 	"testing"
@@ -141,6 +142,19 @@ func TestBuildApplicationRejectsMissingAuditReader(t *testing.T) {
 	}
 }
 
+func TestBuildApplicationRejectsAuditReaderWithoutLoginAuditing(t *testing.T) {
+	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
+	store := &applicationAuthStoreStub{administrator: auth.Administrator{TelegramID: 12345, Role: auth.RoleOwner, Root: true, Active: true}}
+	bot := &applicationBotClientStub{}
+	if _, err := buildApplication(
+		context.Background(), configuration, readinessStub{}, store, bot,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, &applicationAdminCommandsStub{}, &applicationAdministratorManagementStub{}, applicationAuditReaderWithoutLoginStub{}, applicationManagementSettingsStub{},
+		applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
+	); err == nil || !strings.Contains(err.Error(), "login audit") {
+		t.Fatalf("buildApplication() error = %v, want login audit requirement", err)
+	}
+}
+
 func TestBuildApplicationRejectsMissingManagementSettings(t *testing.T) {
 	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
 	store := &applicationAuthStoreStub{administrator: auth.Administrator{TelegramID: 12345, Role: auth.RoleOwner, Root: true, Active: true}}
@@ -220,6 +234,16 @@ func (applicationManagementSettingsWithoutTLSStub) UpdateCore(context.Context, i
 type applicationAuditStub struct{}
 
 func (applicationAuditStub) List(context.Context, int64, int) ([]domain.AuditEvent, error) {
+	return nil, nil
+}
+
+func (applicationAuditStub) RecordLoginAttempt(context.Context, int64, netip.Addr, bool, time.Time) error {
+	return nil
+}
+
+type applicationAuditReaderWithoutLoginStub struct{}
+
+func (applicationAuditReaderWithoutLoginStub) List(context.Context, int64, int) ([]domain.AuditEvent, error) {
 	return nil, nil
 }
 
