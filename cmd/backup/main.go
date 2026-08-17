@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -12,16 +11,18 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/backup"
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/domain"
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/postgres"
 )
 
 const (
 	backupDirectoryEnv = "BACKUP_DIR"
-	retentionDaysEnv   = "BACKUP_RETENTION_DAYS"
 	fileMode           = 0600
 	maxDumpBytes       = 512 << 20
 )
@@ -53,17 +54,23 @@ func run() error {
 	if !filepath.IsAbs(directory) || filepath.Clean(directory) != directory {
 		return errors.New("BACKUP_DIR must be a clean absolute path")
 	}
-	retention, err := positiveInteger(os.Getenv(retentionDaysEnv), 7)
-	if err != nil {
-		return fmt.Errorf("BACKUP_RETENTION_DAYS: %w", err)
-	}
 	if err := os.MkdirAll(directory, 0750); err != nil {
 		return errors.New("create backup directory")
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	database, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		return errors.New("create backup settings database pool")
+	}
+	defer database.Close()
+	retentionProvider := postgres.NewBackupSettingsStore(nil, database)
 	for {
+		retention, pruneEnabled := retentionForAttempt(ctx, retentionProvider)
+		if !pruneEnabled {
+			log.Printf("backup retention unavailable; expired archives will not be removed")
+		}
 		if err := createBackup(ctx, archive, databaseURL, directory, retention, time.Now().UTC()); err != nil && !errors.Is(err, context.Canceled) {
 			log.Printf("backup attempt failed: %v", err)
 		}
@@ -94,7 +101,25 @@ func createBackup(ctx context.Context, archive backup.Archive, databaseURL, dire
 	if err := atomicWrite(filepath.Join(directory, name), sealed); err != nil {
 		return err
 	}
-	return prune(directory, retention, now)
+	if retention > 0 {
+		return prune(directory, retention, now)
+	}
+	return nil
+}
+
+type retentionProvider interface {
+	Get(context.Context) (domain.BackupSettings, error)
+}
+
+func retentionForAttempt(ctx context.Context, provider retentionProvider) (int, bool) {
+	if provider == nil {
+		return 0, false
+	}
+	settings, err := provider.Get(ctx)
+	if err != nil || settings.Validate() != nil {
+		return 0, false
+	}
+	return settings.RetentionDays, true
 }
 
 type limitedWriter struct {
@@ -167,15 +192,4 @@ func prune(directory string, retentionDays int, now time.Time) error {
 		}
 	}
 	return nil
-}
-
-func positiveInteger(value string, fallback int) (int, error) {
-	if value == "" {
-		return fallback, nil
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil || parsed < 1 || parsed > 3650 {
-		return 0, errors.New("must be between 1 and 3650")
-	}
-	return parsed, nil
 }
