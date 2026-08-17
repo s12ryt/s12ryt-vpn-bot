@@ -71,7 +71,7 @@ func TestInstallationGuideSeparatesAutomatedAndManualAcceptance(t *testing.T) {
 	for _, required := range []string{
 		"scripts/install.sh", "scripts/post-deploy-check.sh", "VERIFY_SUBSCRIPTION_URL",
 		"VERIFY_QUALIFICATION_CHAT_ID", "VERIFY_TLS_SERVER_NAME", "600", "未完整驗證",
-		"docs/reverse-proxy.md", "docs/backup-restore.md",
+		"docs/reverse-proxy.md", "docs/backup-restore.md", "非 symlink 且非空",
 	} {
 		if !strings.Contains(contents, required) {
 			t.Errorf("installation guide missing %q", required)
