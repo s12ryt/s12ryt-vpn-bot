@@ -1,6 +1,14 @@
 # 操作與驗證紀錄
 
-## 2026-08-17：稽核、角色與全域政策
+## 2026-08-17：安裝腳本與 ACME 服務
+
+- VPN 核心設定切片以 7 個原子 commits 推送（`a6e7006`..`e65f039`），GitHub CI run `31980626310` 全綠。
+- 安裝／驗收腳本 TDD：RED 鎖定 Linux／x86_64／aarch64、Docker Compose、必要環境、埠位（含 ACME HTTP-01 的 TCP 80）、`docker compose config --quiet` 先驗、不得輸出秘密；部署後腳本鎖定 getMe／getChatMember（以 getMe 剖析 Bot ID，而非根擁有者）、`/health/live|ready`、openssl s_client 憑證鏈、Base64 訂閱四協定＋IPv6、sing-box check、核心控制 socket 與 traffic spool 掛載，並明列需人工／負載的未完整驗證項。
+- 品質修正：`.env` 權限改 octal bitmask（禁止任何 group/other bits）；jq 驗證 Bot 為 administrator/creator；腳本禁用 `set -x`。
+- ACME 服務 TDD：`internal/acme.Service` 以可替換 Issuer／Installer 鎖定條款同意、模式（sslip.io=HTTP-01+`.sslip.io` 尾碼、DuckDNS=DNS-01+token 必填、custom=挑戰類型一致）、CA URL 白名單（1–5 個、去重、HTTPS、無 userinfo/query）、憑證 X509 金鑰對匹配／網域名稱／有效期驗證；多 CA 依序備援、驗證失敗或簽發失敗都不安裝。
+- lego v5.3.1 adapter：`registration.User` 需 `crypto.Signer` 與 `*acme.ExtendedAccount`（以 `go doc` 查證修正，非猜測 API）；HTTP-01 provider 綁 `:80`；DNS provider 白名單僅 `duckdns`；單元測試僅覆蓋離線驗證與 provider 映射，真實網路簽發留部署後驗收。`go mod tidy` 後全量 Go tests／vet／Windows build、bash -n、前端 9/9／lint／build 全綠。
+
+## 2026-08-17：核心設定、稽核、角色與全域政策
 
 - VPN 核心設定 TDD：owner-only API／Web 可管理明確 IPv4/IPv6、四協定 ports、TLS 路徑與網域、REALITY 目標／short ID、Stats endpoint及IPv4出站。REALITY 私鑰為 write-only；空值保留既有 AEAD 密文，新值先加密，資料庫與回應不含明文。
 - 核心設定更新在交易前後都以同一 sing-box generator 驗證；generator 新增 canonical 32-byte Raw Base64URL X25519 private key驗證。成功交易會寫不含秘密的 audit 並排 active users reconcile outbox。前端 RED 後 Vitest 9/9、ESLint、TypeScript/Vite build及全量 Go tests/vet均通過。

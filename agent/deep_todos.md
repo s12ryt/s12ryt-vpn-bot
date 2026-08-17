@@ -27,6 +27,9 @@
 - [x] 完成稽核讀模型、owner 角色管理、全域資格／配額／閒置政策交易與對應響應式 Web 工作區。
 - [x] 完成資格群組 owner-only 啟用／停用；啟用前驗證 Bot 管理員權限，交易記錄 actor 稽核並觸發全量重查。
 - [x] 完成 owner-only VPN 核心設定：公開位址、四協定 ports、TLS／REALITY、Stats 與 IPv4 出站政策；REALITY 私鑰加密保留、完整 sing-box 驗證、reconcile outbox、actor 稽核及 Web 工作區。
+- [x] 完成主機安裝腳本（Linux／架構／Docker／環境／DNS／埠位檢查、0600 `.env`、先驗證 Compose）與部署後自動檢查腳本（Telegram getMe／getChatMember、TLS、訂閱、核心邊界），並以 `docs/installation.md` 明確區分自動化與人工未完整驗證項。
+- [x] 完成 ACME 簽發服務與 lego adapter：條款同意、多 CA 備援、sslip.io HTTP-01／DuckDNS DNS-01、憑證／私鑰／網域／有效期驗證，任何失敗不安裝。
+- [ ] TLS／網域設定資料庫持久化、owner API、Web 頁、自動續期排程與全部 CA 失敗時停用 VPN 協定的營運流程。
 - [x] 建立非 root 多階段應用／控制器映像與 Compose 安全拓撲契約；PostgreSQL 僅綁 loopback，只有 sidecar 掛載 Docker socket。
 - [x] 建立不含真實秘密的 `.env.example`，要求明確資料庫 URL、根金鑰產生方式與不可變 sing-box image digest。
 - [ ] 完成 Telegram 使用者命令、inline 審批與管理操作。
