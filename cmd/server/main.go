@@ -157,7 +157,7 @@ func run() error {
 		return err
 	}
 	qualificationRuleManager := qualification.NewRuleManager(botIdentity.ID, botClient, qualificationRuleStore, time.Now, recheckScheduler)
-	application, err := buildApplication(
+	application, err := buildApplicationWithOptions(
 		signalContext,
 		configuration,
 		pool,
@@ -176,6 +176,7 @@ func run() error {
 		provisioningStore,
 		approvalRequests,
 		approvalHandler,
+		&dashboardAdapter{users: userManagementStore, tls: tlsSettingsStore, core: coreSettingsManagementStore},
 		membershipHandler,
 	)
 	if err != nil {
