@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,6 +64,25 @@ func (store *AuditStore) List(ctx context.Context, before int64, limit int) ([]d
 func jsonObject(value json.RawMessage) bool {
 	var object map[string]json.RawMessage
 	return len(value) > 0 && json.Unmarshal(value, &object) == nil && object != nil
+}
+
+func (store *AuditStore) RecordLoginAttempt(ctx context.Context, telegramID int64, sourceIP netip.Addr, success bool, at time.Time) error {
+	if store == nil || store.database == nil || telegramID <= 0 || !sourceIP.IsValid() || at.IsZero() {
+		return errors.New("login audit is invalid")
+	}
+	action := "auth.login.failure"
+	if success {
+		action = "auth.login.success"
+	}
+	_, err := store.database.Exec(ctx, `
+		INSERT INTO audit_events (action, target_type, target_id, details, created_at)
+		VALUES ($1, 'administrator', $2,
+		        jsonb_build_object('source_ip', $3::text), $4)`,
+		action, strconv.FormatInt(telegramID, 10), sourceIP.Unmap().String(), at)
+	if err != nil {
+		return fmt.Errorf("record login audit: %w", err)
+	}
+	return nil
 }
 
 func (store *AuditStore) RecordPlannedRestartNotification(ctx context.Context, attempted, failed int, at time.Time) error {
