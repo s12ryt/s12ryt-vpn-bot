@@ -161,9 +161,16 @@ func TestReleaseSourceResolutionRetriesTransientGitHubFailures(t *testing.T) {
 		"Authorization: Bearer ${GH_TOKEN}",
 		"--retry 5",
 		"--retry-all-errors",
+		"STABLE_TAGS",
+		"sort -V",
+		"refs/tags/",
+		"falling back to official stable tags",
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Errorf("release source resolution missing transient-failure protection %q", required)
 		}
+	}
+	if !strings.Contains(workflow, `^v[0-9]+\.[0-9]+\.[0-9]+$`) {
+		t.Fatal("release source fallback must reject prerelease and malformed tags")
 	}
 }

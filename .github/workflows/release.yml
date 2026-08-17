@@ -33,11 +33,33 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .release
-          VERSION="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
+          RELEASES_JSON=""
+          if ! RELEASES_JSON="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
             --header "Authorization: Bearer ${GH_TOKEN}" \
-            'https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20' \
-            | jq -r '[.[] | select(.prerelease == false and .draft == false)][0].tag_name')"
-          test -n "${VERSION}" && test "${VERSION}" != null
+            'https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20')"; then
+            echo '::warning::GitHub Releases API failed; falling back to official stable tags'
+          fi
+          VERSION=""
+          if test -n "${RELEASES_JSON}"; then
+            VERSION="$(printf '%s' "${RELEASES_JSON}" | jq -er '[.[] | select(.prerelease == false and .draft == false)][0].tag_name // empty' 2>/dev/null || true)"
+          fi
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::warning::GitHub Releases API returned no valid stable release; falling back to official stable tags'
+            STABLE_TAGS=""
+            for ATTEMPT in 1 2 3 4 5; do
+              if STABLE_TAGS="$(git ls-remote --tags --refs https://github.com/SagerNet/sing-box.git 'refs/tags/v*')" && test -n "${STABLE_TAGS}"; then
+                break
+              fi
+              STABLE_TAGS=""
+              sleep "$((ATTEMPT * 2))"
+            done
+            test -n "${STABLE_TAGS}"
+            VERSION="$(printf '%s\n' "${STABLE_TAGS}" \
+              | awk '{sub("refs/tags/", "", $2); if ($2 ~ /^v[0-9]+\.[0-9]+\.[0-9]+$/) print $2}' \
+              | sort -V | tail -n 1)"
+          fi
+          [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "Resolved stable sing-box version ${VERSION}"
           REMOTE_TAGS=""
           for ATTEMPT in 1 2 3 4 5; do
             if REMOTE_TAGS="$(git ls-remote https://github.com/SagerNet/sing-box.git "refs/tags/${VERSION}" "refs/tags/${VERSION}^{}")" && test -n "${REMOTE_TAGS}"; then
