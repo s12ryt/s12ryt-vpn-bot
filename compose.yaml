@@ -76,6 +76,7 @@ services:
     image: ${BACKUP_IMAGE:-s12ryt-vpn-backup:local}
     entrypoint: ["/usr/local/bin/backup"]
     restart: unless-stopped
+    network_mode: host
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,7 +86,6 @@ services:
       APP_MASTER_KEY: ${APP_MASTER_KEY:?set APP_MASTER_KEY}
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       BACKUP_DIR: /var/lib/s12ryt/backups
-      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
     volumes:
       - backups:/var/lib/s12ryt/backups
     read_only: true

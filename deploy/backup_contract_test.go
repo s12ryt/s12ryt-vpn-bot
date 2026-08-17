@@ -13,9 +13,10 @@ func TestBackupAndRestoreDeploymentContract(t *testing.T) {
 	restore := readBackupContractFile(t, filepath.Join(root, "cmd", "restore", "main.go"))
 	dockerfile := readBackupContractFile(t, filepath.Join(root, "Dockerfile.backup"))
 	compose := readBackupContractFile(t, filepath.Join(root, "compose.yaml"))
+	environment := readBackupContractFile(t, filepath.Join(root, ".env.example"))
 	guide := readBackupContractFile(t, filepath.Join(root, "docs", "backup-restore.md"))
 
-	for _, required := range []string{"BACKUP_DIR", "BACKUP_RETENTION_DAYS", "pg_dump", "PGDATABASE", "0600", "24 * time.Hour"} {
+	for _, required := range []string{"BACKUP_DIR", "NewBackupSettingsStore", "retentionForAttempt", "pg_dump", "PGDATABASE", "0600", "24 * time.Hour"} {
 		if !strings.Contains(backup, required) {
 			t.Errorf("backup command missing %q", required)
 		}
@@ -38,7 +39,14 @@ func TestBackupAndRestoreDeploymentContract(t *testing.T) {
 			t.Errorf("compose missing backup contract %q", required)
 		}
 	}
-	for _, required := range []string{"APP_MASTER_KEY", "docker compose run --rm", "RESTORE_ARCHIVE", "pg_restore", "完整性", "7"} {
+	backupSection := between(compose, "  backup:\n", "  core-controller:\n")
+	if !strings.Contains(backupSection, "network_mode: host") {
+		t.Fatal("backup must use host networking because DATABASE_URL targets the loopback-only PostgreSQL publication")
+	}
+	if strings.Contains(compose, "BACKUP_RETENTION_DAYS") || strings.Contains(environment, "BACKUP_RETENTION_DAYS") {
+		t.Fatal("backup retention must be controlled by PostgreSQL and Web, not a startup environment variable")
+	}
+	for _, required := range []string{"APP_MASTER_KEY", "docker compose run --rm", "RESTORE_ARCHIVE", "pg_restore", "完整性", "Web 管理面板", "預設保留 7 天"} {
 		if !strings.Contains(guide, required) {
 			t.Errorf("backup guide missing %q", required)
 		}
