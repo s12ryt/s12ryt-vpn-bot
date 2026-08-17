@@ -62,3 +62,28 @@ func TestReleaseNotesRenderRealNewlines(t *testing.T) {
 		t.Fatal("release notes must be assembled with printf so newlines render correctly")
 	}
 }
+
+func TestReleaseWorkflowScansBeforePublishingImages(t *testing.T) {
+	body, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	workflow := string(body)
+	firstScan := strings.Index(workflow, "trivy")
+	firstPush := strings.Index(workflow, "--push")
+	if firstScan == -1 {
+		t.Fatal("release workflow must run Trivy")
+	}
+	if firstPush == -1 {
+		t.Fatal("release workflow must publish images")
+	}
+	if firstPush < firstScan {
+		t.Fatal("images must be scanned locally before the first --push; a gate that publishes first leaks vulnerable images to the public registry")
+	}
+	if strings.Contains(workflow, "Scan published image") {
+		t.Fatal("push-then-scan step must be removed; scanning must gate publication")
+	}
+	if !strings.Contains(workflow, "--load") {
+		t.Fatal("workflow must load a locally built image for the pre-publication scan")
+	}
+}

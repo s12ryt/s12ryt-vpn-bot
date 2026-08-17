@@ -61,6 +61,19 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
       - name: Create multi-platform builder
         run: docker buildx create --name release-builder --driver docker-container --use
+      - name: Install Trivy scanner
+        run: go install github.com/aquasecurity/trivy/cmd/trivy@v0.66.0
+      - name: Pre-build sing-box image for scanning
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --file Dockerfile.singbox \
+            --tag scan-local:singbox \
+            --load .
+      - name: Scan sing-box image before publishing
+        run: |
+          "$(go env GOPATH)/bin/trivy" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            scan-local:singbox
       - name: Build and push traceable sing-box image
         run: |
           docker buildx build \
@@ -69,11 +82,6 @@ jobs:
             --file Dockerfile.singbox \
             --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box:${{ steps.source.outputs.image_tag }}" \
             --push .
-      - name: Scan published image
-        run: |
-          go install github.com/aquasecurity/trivy/cmd/trivy@v0.66.0
-          "$(go env GOPATH)/bin/trivy" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
-            "ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box:${{ steps.source.outputs.image_tag }}"
       - name: Capture immutable image digest
         id: image
         run: |
@@ -81,22 +89,42 @@ jobs:
           test "${DIGEST#sha256:}" != "${DIGEST}"
           echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
           echo "image_digest=${DIGEST}" >> .release/source-metadata.txt
+      - name: Pre-build application image for scanning
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --file Dockerfile \
+            --tag scan-local:app \
+            --load .
+      - name: Scan application image before publishing
+        run: |
+          "$(go env GOPATH)/bin/trivy" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            scan-local:app
       - name: Build and push application image
         run: |
           docker buildx build --platform linux/amd64,linux/arm64 \
             --sbom=true --provenance=mode=max --file Dockerfile \
             --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}" --push .
+      - name: Pre-build restricted controller image for scanning
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --file Dockerfile.controller \
+            --build-arg "SINGBOX_IMAGE=ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box@${{ steps.image.outputs.digest }}" \
+            --tag scan-local:controller \
+            --load .
+      - name: Scan controller image before publishing
+        run: |
+          "$(go env GOPATH)/bin/trivy" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            scan-local:controller
       - name: Build and push restricted controller image
         run: |
           docker buildx build --platform linux/amd64,linux/arm64 \
             --sbom=true --provenance=mode=max --file Dockerfile.controller \
             --build-arg "SINGBOX_IMAGE=ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box@${{ steps.image.outputs.digest }}" \
             --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}" --push .
-      - name: Scan application and controller images
+      - name: Capture application and controller digests
         run: |
-          TRIVY="$(go env GOPATH)/bin/trivy"
-          "${TRIVY}" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}"
-          "${TRIVY}" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}"
           APP_DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           CONTROLLER_DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           echo "application_digest=${APP_DIGEST}" >> .release/source-metadata.txt
