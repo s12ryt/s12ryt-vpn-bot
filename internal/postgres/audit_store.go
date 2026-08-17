@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/domain"
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/reality"
 )
 
 type AuditStore struct {
@@ -145,6 +146,26 @@ func (store *AuditStore) RecordTrafficRecoveryNotification(ctx context.Context, 
 		wasFailClosed, attempted, failed, at)
 	if err != nil {
 		return fmt.Errorf("record traffic recovery notification audit: %w", err)
+	}
+	return nil
+}
+
+func (store *AuditStore) RecordRealityHealthNotification(ctx context.Context, target string, healthy bool, attempted, failed int, at time.Time) error {
+	if store == nil || store.database == nil || reality.ValidateTargetDomain(target) != nil ||
+		!validNotificationCounts(attempted, failed) || at.IsZero() {
+		return errors.New("REALITY health notification audit is invalid")
+	}
+	action := "reality.health.failure_notification"
+	if healthy {
+		action = "reality.health.recovery_notification"
+	}
+	_, err := store.database.Exec(ctx, `
+		INSERT INTO audit_events (action, target_type, target_id, details, created_at)
+		VALUES ($1, 'reality_target', $2,
+		        jsonb_build_object('attempted', $3::integer, 'failed', $4::integer), $5)`,
+		action, target, attempted, failed, at)
+	if err != nil {
+		return fmt.Errorf("record REALITY health notification audit: %w", err)
 	}
 	return nil
 }

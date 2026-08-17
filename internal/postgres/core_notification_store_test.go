@@ -103,3 +103,17 @@ func TestAuditStoreRejectsUnknownTrafficFailureStage(t *testing.T) {
 		t.Fatalf("error=%v query=%q", err, database.execSQL)
 	}
 }
+
+func TestAuditStoreRecordsRealityHealthNotificationWithoutSecrets(t *testing.T) {
+	now := time.Date(2026, time.August, 18, 11, 0, 0, 0, time.UTC)
+	database := &databaseStub{}
+	store := NewAuditStore(database)
+	if err := store.RecordRealityHealthNotification(context.Background(), "www.example.com", false, 3, 1, now); err != nil {
+		t.Fatalf("RecordRealityHealthNotification() error = %v", err)
+	}
+	if !strings.Contains(database.execSQL, "INSERT INTO audit_events") ||
+		strings.Contains(database.execSQL, "private_key") ||
+		!reflect.DeepEqual(database.execArgs, []any{"reality.health.failure_notification", "www.example.com", 3, 1, now}) {
+		t.Fatalf("audit query=%q args=%#v", database.execSQL, database.execArgs)
+	}
+}
