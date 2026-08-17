@@ -68,11 +68,48 @@ func run() error {
 
 	signalContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	botClient := telegram.NewClient(configuration.BootstrapBotToken, "https://api.telegram.org", &http.Client{Timeout: 40 * time.Second})
-	qualificationStore := postgres.NewQualificationStore(pool)
 	transactionRunner := postgres.NewTransactionRunner(pool)
+	botTokenKey, err := config.DeriveKey(configuration.MasterKey, "bot-token-encryption")
+	if err != nil {
+		return err
+	}
+	botTokenCipher, err := secrets.NewValueCipher(botTokenKey, nil)
+	if err != nil {
+		return err
+	}
+	botSettingsStore := postgres.NewBotSettingsStore(transactionRunner, pool, botTokenCipher)
+	activeBotToken := configuration.BootstrapBotToken
+	if storedToken, tokenErr := botSettingsStore.Token(startupContext); tokenErr == nil && storedToken != "" {
+		activeBotToken = storedToken
+	}
+	botHTTPClient := &http.Client{Timeout: 40 * time.Second}
+	const telegramAPIBase = "https://api.telegram.org"
+	botClientFactory := func(token string) *telegram.Client {
+		return telegram.NewClient(token, telegramAPIBase, botHTTPClient)
+	}
+	botClient := botClientFactory(activeBotToken)
+	botIdentity, err := botClient.GetMe(startupContext)
+	if err != nil {
+		return err
+	}
+	swapAwareBotClient, err := telegram.NewSwapAwareClient(botClient, botIdentity)
+	if err != nil {
+		return err
+	}
+	botTokenManager, err := buildBotTokenManager(botTokenDependencies{
+		wrapper: swapAwareBotClient,
+		store:   botSettingsStore,
+		factory: botClientFactory,
+		verify: func(ctx context.Context, client *telegram.Client) (telegram.User, error) {
+			return client.GetMe(ctx)
+		},
+	})
+	if err != nil {
+		return err
+	}
+	qualificationStore := postgres.NewQualificationStore(pool)
 	accessStore := postgres.NewAccessStore(transactionRunner)
-	memberLookup, err := qualification.NewRetryingMemberLookup(botClient, 10, nil, time.Now, nil)
+	memberLookup, err := qualification.NewRetryingMemberLookup(swapAwareBotClient, 10, nil, time.Now, nil)
 	if err != nil {
 		return err
 	}
@@ -129,11 +166,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	approvalHandler, err := telegram.NewApprovalHandler(authStore, provisioningStore, userManagementStore, botClient, time.Now)
+	approvalHandler, err := telegram.NewApprovalHandler(authStore, provisioningStore, userManagementStore, swapAwareBotClient, time.Now)
 	if err != nil {
 		return err
 	}
-	approvalRequests, err := telegram.NewApprovalRequestNotifier(authStore, botClient)
+	approvalRequests, err := telegram.NewApprovalRequestNotifier(authStore, swapAwareBotClient)
 	if err != nil {
 		return err
 	}
@@ -141,10 +178,10 @@ func run() error {
 		settings:   qualificationStore,
 		users:      qualificationStore,
 		rules:      qualificationStore,
-		members:    botClient,
+		members:    swapAwareBotClient,
 		writer:     accessStore,
 		recipients: authStore,
-		sender:     botClient,
+		sender:     swapAwareBotClient,
 		now:        time.Now,
 	})
 	if err != nil {
@@ -152,17 +189,13 @@ func run() error {
 	}
 	managementSettingsStore := postgres.NewManagementSettingsStore(transactionRunner, pool, recheckScheduler)
 	qualificationRuleStore := postgres.NewQualificationRuleStore(transactionRunner)
-	botIdentity, err := botClient.GetMe(startupContext)
-	if err != nil {
-		return err
-	}
-	qualificationRuleManager := qualification.NewRuleManager(botIdentity.ID, botClient, qualificationRuleStore, time.Now, recheckScheduler)
+	qualificationRuleManager := qualification.NewRuleManager(swapAwareBotClient.Identity().ID, swapAwareBotClient, qualificationRuleStore, time.Now, recheckScheduler)
 	application, err := buildApplicationWithOptions(
 		signalContext,
 		configuration,
 		pool,
 		authStore,
-		botClient,
+		swapAwareBotClient,
 		nil,
 		time.Now,
 		vpnAccessService,
@@ -177,6 +210,7 @@ func run() error {
 		approvalRequests,
 		approvalHandler,
 		&dashboardAdapter{users: userManagementStore, tls: tlsSettingsStore, core: coreSettingsManagementStore},
+		botTokenManager,
 		membershipHandler,
 	)
 	if err != nil {
@@ -194,7 +228,7 @@ func run() error {
 	coreNotifier, err := coreworker.NewTelegramNotifier(
 		qualificationStore,
 		authStore,
-		botClient,
+		swapAwareBotClient,
 		auditStore,
 		time.Now,
 	)
@@ -219,7 +253,7 @@ func run() error {
 		return err
 	}
 	trafficStore := postgres.NewTrafficStore(transactionRunner)
-	trafficNotifier, err := trafficrunner.NewTelegramFaultNotifier(authStore, botClient, postgres.NewAuditStore(pool), time.Now)
+	trafficNotifier, err := trafficrunner.NewTelegramFaultNotifier(authStore, swapAwareBotClient, postgres.NewAuditStore(pool), time.Now)
 	if err != nil {
 		return err
 	}

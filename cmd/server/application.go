@@ -142,13 +142,13 @@ func buildApplication(
 	callbacks telegram.CallbackHandler,
 	membershipHandlers ...telegram.MembershipHandler,
 ) (applicationRuntime, error) {
-	return buildApplicationWithOptions(ctx, configuration, readiness, store, botClient, randomSource, now, vpnAccess, vpnStatus, adminCommands, administratorManager, audits, managementSettings, subscriptions, users, provisioning, approvalRequests, callbacks, nil, membershipHandlers...)
+	return buildApplicationWithOptions(ctx, configuration, readiness, store, botClient, randomSource, now, vpnAccess, vpnStatus, adminCommands, administratorManager, audits, managementSettings, subscriptions, users, provisioning, approvalRequests, callbacks, nil, nil, membershipHandlers...)
 }
 
 // buildApplicationWithOptions allows the process entrypoint to attach extra
 // handler options (for example the operational overview provider) without
 // weakening the required-dependency checks exercised by the tests.
-func buildApplicationWithOptions(ctx context.Context, configuration config.Config, readiness httpapi.ReadinessProbe, store applicationAuthStore, botClient applicationBotClient, randomSource io.Reader, now func() time.Time, vpnAccess telegram.VPNAccessProvider, vpnStatus telegram.VPNStatusProvider, adminCommands telegram.AdminCommandProvider, administratorManager httpapi.AdministratorManager, audits httpapi.AuditReader, managementSettings httpapi.ManagementSettingsManager, subscriptions httpapi.SubscriptionRenderer, users httpapi.UserManager, provisioning httpapi.UserProvisioningManager, approvalRequests telegram.ApprovalRequiredNotifier, callbacks telegram.CallbackHandler, extraDashboard httpapi.DashboardProvider, membershipHandlers ...telegram.MembershipHandler) (applicationRuntime, error) {
+func buildApplicationWithOptions(ctx context.Context, configuration config.Config, readiness httpapi.ReadinessProbe, store applicationAuthStore, botClient applicationBotClient, randomSource io.Reader, now func() time.Time, vpnAccess telegram.VPNAccessProvider, vpnStatus telegram.VPNStatusProvider, adminCommands telegram.AdminCommandProvider, administratorManager httpapi.AdministratorManager, audits httpapi.AuditReader, managementSettings httpapi.ManagementSettingsManager, subscriptions httpapi.SubscriptionRenderer, users httpapi.UserManager, provisioning httpapi.UserProvisioningManager, approvalRequests telegram.ApprovalRequiredNotifier, callbacks telegram.CallbackHandler, extraDashboard httpapi.DashboardProvider, extraBotSettings httpapi.BotSettingsManager, membershipHandlers ...telegram.MembershipHandler) (applicationRuntime, error) {
 	if vpnAccess == nil {
 		return applicationRuntime{}, errors.New("VPN access provider is required")
 	}
@@ -228,7 +228,7 @@ func buildApplicationWithOptions(ctx context.Context, configuration config.Confi
 		handler: httpapi.NewApplicationHandler(readiness, loginFlow, sessions, httpapi.LoginProtection{
 			SourceIPs: httpapi.NewSourceIPResolver(configuration.TrustedProxyCIDRs),
 			Limiter:   loginLimiter,
-		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules, coreSettings, tlsSettings, extraDashboard),
+		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules, coreSettings, tlsSettings, extraDashboard, extraBotSettings),
 		bot: telegram.NewRunner(botClient, commandHandler, nil, membershipHandlers...).WithCallbackHandler(callbacks),
 	}, nil
 }
