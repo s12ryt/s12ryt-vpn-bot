@@ -267,4 +267,28 @@ describe('管理面板登入', () => {
 		expect(fetchMock).toHaveBeenCalledWith('/api/overview', expect.objectContaining({ credentials: 'include' }))
 		expect(screen.getByText('TLS 憑證尚未核發，系統不會輸出 VPN 節點。')).toBeInTheDocument()
 	})
+
+	it('擁有者可熱切換 Bot Token 並只看到非秘密資訊', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings: { bot_username: 'member_bot', updated_at: '2026-08-17T12:00:00Z' } }) })
+			.mockResolvedValueOnce({ ok: true })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings: { bot_username: 'member_bot', updated_at: '2026-08-17T12:30:00Z' } }) })
+		vi.stubGlobal('fetch', fetchMock)
+		vi.stubGlobal('confirm', () => true)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: 'Bot 設定' }))
+		expect(await screen.findByRole('heading', { name: 'Bot 與 Token' })).toBeInTheDocument()
+		expect(screen.getByText('member_bot')).toBeInTheDocument()
+		await user.type(screen.getByLabelText('新的 Bot Token'), '123456:ABC-def')
+		await user.click(screen.getByRole('button', { name: '旋轉 Bot Token' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/settings/bot', {
+			method: 'PUT', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ bot_token: '123456:ABC-def' }),
+		})
+	})
 })

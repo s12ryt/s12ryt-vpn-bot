@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Activity, Check, Globe, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
+import { Activity, Bot, Check, Globe, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -85,7 +85,12 @@ type Overview = {
   core_configured: boolean
 }
 
-type WorkspaceView = 'overview' | 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'audit'
+type BotSettings = {
+  bot_username: string
+  updated_at: string
+}
+
+type WorkspaceView = 'overview' | 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'bot' | 'audit'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -132,6 +137,8 @@ function App() {
   const [tlsSettings, setTLSSettings] = useState<TLSSettings | null>(null)
   const [duckdnsToken, setDuckdnsToken] = useState('')
   const [overview, setOverview] = useState<Overview | null>(null)
+  const [botSettings, setBotSettings] = useState<BotSettings | null>(null)
+  const [botToken, setBotToken] = useState('')
   const [qualificationChatID, setQualificationChatID] = useState('')
   const [qualificationChatType, setQualificationChatType] = useState<'supergroup' | 'channel'>('supergroup')
   const [qualificationTitle, setQualificationTitle] = useState('')
@@ -209,6 +216,43 @@ function App() {
       setView('overview')
     } catch {
       setError('無法載入營運總覽。')
+    }
+  }
+
+  async function loadBotSettings() {
+    const response = await fetch('/api/settings/bot', { credentials: 'include' })
+    if (!response.ok) throw new Error('bot settings unavailable')
+    const payload = await response.json() as { settings: BotSettings }
+    if (!payload.settings || typeof payload.settings.bot_username !== 'string') throw new Error('bot settings invalid')
+    setBotSettings(payload.settings)
+    setBotToken('')
+  }
+
+  async function showBotSettings() {
+    setError('')
+    try {
+      await loadBotSettings()
+      setView('bot')
+    } catch {
+      setError('無法載入 Bot 設定。')
+    }
+  }
+
+  async function rotateBotToken(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!botToken.trim()) return
+    if (!window.confirm('旋轉 Bot Token 會立即以新 Token 連線 Telegram；確認新 Token 已由 BotFather 產生？')) return
+    setError('')
+    try {
+      const response = await fetch('/api/settings/bot', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_token: botToken.trim() }),
+      })
+      if (!response.ok) throw new Error('bot token rotation failed')
+      await loadBotSettings()
+    } catch {
+      setError('Bot Token 旋轉失敗，請確認新 Token 有效且屬於同一個 Bot。')
     }
   }
 
@@ -292,6 +336,8 @@ function App() {
       setTLSSettings(null)
       setDuckdnsToken('')
       setOverview(null)
+      setBotSettings(null)
+      setBotToken('')
       setView('users')
       setLoginCode('')
     } catch {
@@ -523,6 +569,7 @@ function App() {
             {identity?.role === 'owner' && <button className={view === 'settings' ? 'nav-active' : ''} type="button" onClick={() => void showManagementSettings()}><Settings2 size={18} />資格群組</button>}
             {identity?.role === 'owner' && <button className={view === 'core' ? 'nav-active' : ''} type="button" onClick={() => void showCoreSettings()}><Network size={18} />VPN 與網路</button>}
             {identity?.role === 'owner' && <button className={view === 'tls' ? 'nav-active' : ''} type="button" onClick={() => void showTLSSettings()}><Globe size={18} />TLS 憑證</button>}
+            {identity?.role === 'owner' && <button className={view === 'bot' ? 'nav-active' : ''} type="button" onClick={() => void showBotSettings()}><Bot size={18} />Bot 設定</button>}
             <button className={view === 'audit' ? 'nav-active' : ''} type="button" onClick={() => void showAudit()}><ScrollText size={18} />稽核紀錄</button>
           </nav>
           {view === 'overview' ? <section className="workspace">
@@ -656,6 +703,18 @@ function App() {
               {tlsSettings.state !== 'issued' && <p className="secret-state">未取得受信任憑證前，系統不會輸出任何 VPN 節點。</p>}
               <label className="toggle-control"><input aria-label="同意憑證機構條款" type="checkbox" checked={tlsSettings.terms_accepted} onChange={(event) => updateTLSSetting('terms_accepted', event.target.checked)} /><span>同意憑證機構條款</span></label>
               <button className="primary-action" type="submit">儲存 TLS 設定</button>
+            </form>}
+          </section> : view === 'bot' ? <section className="workspace">
+            <div className="workspace-heading"><div><span className="section-label">Telegram 整合</span><h1>Bot 與 Token</h1></div></div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            {botSettings && <form className="settings-form" onSubmit={(event) => void rotateBotToken(event)}>
+              <div className="settings-grid">
+                <div className="overview-stat"><strong>{botSettings.bot_username}</strong><span>Bot 使用者名稱</span></div>
+                <div className="overview-stat"><strong>{new Date(botSettings.updated_at).toISOString().replace('.000Z', 'Z')}</strong><span>上次輪替時間</span></div>
+              </div>
+              <label>新的 Bot Token<input aria-label="新的 Bot Token" type="password" autoComplete="new-password" value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder="由 BotFather 重新產生的 Token" /></label>
+              <p className="secret-state">只支援同一個 Bot 的 Token 輪替；更換為不同 Bot 需以新環境值重新部署。</p>
+              <button className="primary-action" type="submit" disabled={!botToken.trim()}>旋轉 Bot Token</button>
             </form>}
           </section> : <section className="workspace">
             <div className="workspace-heading">

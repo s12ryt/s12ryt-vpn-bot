@@ -294,6 +294,9 @@ h1 {
 .settings-grid input, .settings-grid select { width: 100%; min-width: 0; height: 40px; padding: 0 10px; border: 1px solid #bdc9c2; border-radius: 5px; background: #fff; color: #18241e; font: inherit; }
 .settings-grid input:focus, .settings-grid select:focus { outline: 2px solid #1d7251; outline-offset: 1px; }
 .secret-state { margin: 0; color: #38634f; font-size: 0.875rem; }
+.settings-form > label { display: grid; gap: 7px; color: #44564d; font-size: 13px; font-weight: 650; }
+.settings-form > label input { height: 40px; padding: 0 10px; border: 1px solid #bdc9c2; border-radius: 5px; background: #fff; color: #18241e; font: inherit; }
+.settings-form > label input:focus { outline: 2px solid #1d7251; outline-offset: 1px; }
 .overview-stat { display: grid; gap: 6px; padding: 16px 18px; background: #fff; border: 1px solid #d7dfdb; border-radius: 7px; }
 .overview-stat strong { font-size: 1.6rem; color: #18241e; }
 .overview-stat span { color: #44564d; font-size: 13px; font-weight: 650; }
