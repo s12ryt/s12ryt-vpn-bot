@@ -106,8 +106,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_TAG="core-${{ steps.source.outputs.image_tag }}"
+          NOTES="$(printf 'Source commit: %s\nSource SHA-256: %s\nImage: ghcr.io/%s/s12ryt-sing-box@%s' \
+            "${{ steps.source.outputs.source_commit }}" \
+            "${{ steps.source.outputs.source_sha256 }}" \
+            "${{ github.repository_owner }}" \
+            "${{ steps.image.outputs.digest }}")"
           if ! gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release create "${RELEASE_TAG}" .release/source-metadata.txt \
               --title "sing-box ${{ steps.source.outputs.version }} with V2Ray stats" \
-              --notes "Source commit: ${{ steps.source.outputs.source_commit }}\nSource SHA-256: ${{ steps.source.outputs.source_sha256 }}\nImage: ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box@${{ steps.image.outputs.digest }}"
+              --notes "${NOTES}"
           fi

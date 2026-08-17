@@ -47,3 +47,18 @@ func TestSingBoxDockerfileUsesOfficialLinuxBuildRequirements(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseNotesRenderRealNewlines(t *testing.T) {
+	body, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		if strings.Contains(line, "--notes") && strings.Contains(line, `\n`) {
+			t.Fatalf("release --notes must not embed literal backslash-n (it renders as text): %s", strings.TrimSpace(line))
+		}
+	}
+	if !strings.Contains(string(body), "printf 'Source commit: ") {
+		t.Fatal("release notes must be assembled with printf so newlines render correctly")
+	}
+}
