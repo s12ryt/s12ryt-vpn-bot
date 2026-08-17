@@ -112,5 +112,6 @@ while IFS= read -r evidence_path; do
     *) fail "外部驗收 evidence 路徑不安全：$evidence_path" ;;
   esac
   [[ -f "$evidence_file" && ! -L "$evidence_root/$evidence_path" ]] || fail "外部驗收 evidence 檔案不存在：$evidence_path"
+  [[ -s "$evidence_file" ]] || fail "外部驗收 evidence 檔案為空：$evidence_path"
 done < <(jq -r '.checks | to_entries[] | .value.evidence' "$manifest_path")
 pass '外部四協定雙棧、IPv6-only／IPv4 出站、計量、配額、重啟與600連線驗收證據'

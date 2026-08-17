@@ -220,6 +220,8 @@ func TestPostDeployCheckVerifiesReferencedEvidenceFiles(t *testing.T) {
 		"evidence_path",
 		"外部驗收 evidence 路徑不安全",
 		"外部驗收 evidence 檔案不存在",
+		`-s "$evidence_file"`,
+		"外部驗收 evidence 檔案為空",
 	} {
 		if !strings.Contains(contents, required) {
 			t.Errorf("post-deploy checker missing evidence file verification %q", required)
