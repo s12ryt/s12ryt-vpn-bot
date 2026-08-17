@@ -140,3 +140,4 @@
 - server 接線：`buildApplicationWithOptions` 要求 managementSettings 實作 `RealitySearchManager`；main 以 EmbeddedDataset+TLSProber(5s)+Service(200/5/60s) 組裝。
 - Web：core 頁新增「搜尋 REALITY 目標」按鈕（POST 無 body 僅 CSRF header）→ 500ms 輪詢 GET 至非 running（上限 130 次）→ 結果清單顯示 domain/毫秒(toFixed(1))/TLS1.3 與「採用」按鈕填入 reality_server；REALITY 目標 label 改「REALITY 目標網域」；logout 清理。
 - 驗證：`go test ./internal/reality`、全量 `go test ./...`、`go vet ./...`、Windows server build、Linux amd64 server/core-controller 交叉 build、前端 Vitest 13/13、ESLint、Vite build 全綠。
+- 上游阻塞複查（2026-08-17）：sing-box 同日發布 v1.13.19 stable，但 go.mod 仍為 x/crypto v0.48.0、x/net v0.50.0、grpc v1.79.1，未達 Trivy 修復版（grpc>=1.79.3、x/crypto>=0.52.0、x/net>=0.56.0）；1.14.0 仍為 beta（prerelease，workflow 正確排除）。維持 release 失敗現場，不重複觸發、不寬鬆閘門；weekly 排程會在上游修復後自動重試。
