@@ -124,3 +124,19 @@ func TestPackageCleanupWorkflowIsConstrained(t *testing.T) {
 		t.Fatal("all cleanup actions must be pinned to full commit SHAs")
 	}
 }
+
+func TestReleaseWorkflowVerifiesThousandUserConfiguration(t *testing.T) {
+	workflow, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	if !strings.Contains(string(workflow), "scaleconfig") {
+		t.Fatal("release workflow must build the 1000-user scale configuration tool")
+	}
+	if !strings.Contains(string(workflow), "check -c") {
+		t.Fatal("release workflow must run sing-box check against the 1000-user configuration before publishing")
+	}
+	if _, err := os.Stat("../cmd/scaleconfig/main.go"); err != nil {
+		t.Fatal("cmd/scaleconfig must exist so the scale check can generate its input")
+	}
+}

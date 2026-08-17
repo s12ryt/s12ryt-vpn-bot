@@ -70,6 +70,21 @@ jobs:
             --file Dockerfile.singbox \
             --tag scan-local:singbox \
             --load .
+      - name: Verify 1000-user configuration with sing-box check
+        run: |
+          set -euo pipefail
+          mkdir -p .release/tls
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -subj '/CN=vpn.example.com' \
+            -keyout .release/tls/privkey.pem \
+            -out .release/tls/fullchain.pem >/dev/null 2>&1
+          go run ./cmd/scaleconfig > .release/scale-config.json
+          test "$(jq '.inbounds | length' .release/scale-config.json)" -eq 8
+          docker run --rm --network none --read-only \
+            --security-opt no-new-privileges --cap-drop ALL \
+            --volume "${PWD}/.release/scale-config.json:/tmp/config.json:ro" \
+            --volume "${PWD}/.release/tls:/run/tls:ro" \
+            scan-local:singbox check -c /tmp/config.json
       - name: Scan sing-box image before publishing
         run: |
           # amd64 is a faithful proxy for the multi-arch push: both platforms
