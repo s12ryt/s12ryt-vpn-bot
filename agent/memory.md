@@ -6,6 +6,7 @@
 - 直接讀取官方 `v1.13.19` `go.mod`，受 Trivy 阻擋的版本仍為 `golang.org/x/crypto v0.48.0`、`golang.org/x/net v0.50.0`、`golang.org/x/text v0.34.0`、`google.golang.org/grpc v1.79.1`。因此維持嚴格 HIGH／CRITICAL gate，不採 prerelease、不忽略 CVE、不私改上游 dependency graph。
 - 本機重新執行環境檢查：`docker`／`docker compose` 指令仍不存在；`BOT_TOKEN`、`APP_MASTER_KEY`、`DATABASE_URL`、`WEB_PUBLIC_URL` 均未提供。故真實 Linux／Docker／Telegram／ACME 部署後驗收仍無可執行環境，不得虛報完成。
 - release weekly workflow 與部署後驗收腳本已就緒；這次檢查沒有出現可安全推進正式發佈或真實部署驗收的新條件。
+- 文件懷疑式複查發現 README 的「尚未完成」章節只列 release，沒有明列真實部署驗收。先新增文件契約 RED，再補上實際 Linux／Docker／Telegram／ACME 條件與 `scripts/post-deploy-check.sh` 入口；契約同時禁止恢復已完成的 ACME／備份／設定頁舊敘述。
 
 ## 2026-08-17：1,000 使用者真實核心檢查與發佈閘門實證
 
