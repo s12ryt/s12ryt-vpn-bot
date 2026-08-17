@@ -49,10 +49,8 @@ func TestReloadingCertificateInstallerUsesConfiguredPaths(t *testing.T) {
 		TLSCertificatePath: filepath.Join(directory, "fullchain.pem"),
 		TLSKeyPath:         filepath.Join(directory, "privkey.pem"),
 	}}
-	certificate := tlsCertificateFixture(t)
-
 	installer := &reloadingCertificateInstaller{core: loader}
-	if err := installer.Install(context.Background(), certificate); err != nil {
+	if err := installer.Install(context.Background(), tlsCertificateFixture(t, time.Now().UTC())); err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}
 	if contents, err := os.ReadFile(filepath.Join(directory, "privkey.pem")); err != nil || !strings.Contains(string(contents), "PRIVATE KEY") {
@@ -60,7 +58,7 @@ func TestReloadingCertificateInstallerUsesConfiguredPaths(t *testing.T) {
 	}
 
 	broken := &coreLoaderStub{err: errors.New("core settings unavailable")}
-	if err := (&reloadingCertificateInstaller{core: broken}).Install(context.Background(), certificate); err == nil {
+	if err := (&reloadingCertificateInstaller{core: broken}).Install(context.Background(), tlsCertificateFixture(t, time.Now().UTC())); err == nil {
 		t.Fatal("expected core loader error to propagate")
 	}
 }
@@ -68,7 +66,7 @@ func TestReloadingCertificateInstallerUsesConfiguredPaths(t *testing.T) {
 func TestTLSRuntimeEnsureObtainsAndInstallsEndToEnd(t *testing.T) {
 	now := time.Date(2026, 8, 17, 11, 0, 0, 0, time.UTC)
 	directory := t.TempDir()
-	certificate := tlsCertificateFixture(t)
+	certificate := tlsCertificateFixture(t, now)
 	expires := certificate.NotAfter.Truncate(time.Second)
 	deps := tlsRuntimeDependencies{
 		core: &coreLoaderStub{settings: singbox.Settings{
@@ -153,13 +151,12 @@ func (stub *tlsFailureRecorderStub) RecordFailure(context.Context, string, time.
 	return nil
 }
 
-func tlsCertificateFixture(t *testing.T) acme.Certificate {
+func tlsCertificateFixture(t *testing.T, now time.Time) acme.Certificate {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	now := time.Now().UTC()
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(7), Subject: pkix.Name{CommonName: "vpn.example.com"},
 		DNSNames: []string{"vpn.example.com"}, NotBefore: now.Add(-time.Minute), NotAfter: now.Add(90 * 24 * time.Hour),
