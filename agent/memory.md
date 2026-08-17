@@ -4,7 +4,7 @@
 
 - 懷疑式複查發現 evidence gate 會驗檔案存在、一般檔、非 symlink 與 canonical containment，但 0-byte 空檔仍符合 `-f`，可造成外部 E2E 完成語意的假陽性。
 - RED 在直接 installer contract 要求 `-s "$evidence_file"` 與固定空檔錯誤；舊腳本精確失敗。GREEN 在既有安全路徑驗證後拒絕空檔，安裝文件同步要求 evidence 為非 symlink 且非空。
-- 驗證：deploy tests／vet、全量 `go test ./...`／`go vet ./...`、WSL `bash -n` 與 diff check 全綠；ShellCheck 待 GitHub Linux CI 補證。內容真偽仍必須由實際部署操作員與外部測試產生，不宣稱本機可驗證語意內容。
+- 驗證：deploy tests／vet、全量 `go test ./...`／`go vet ./...`、WSL `bash -n` 與 diff check 全綠；GitHub CI run `32078025866` 進一步驗證 race、vet、ShellCheck、PostgreSQL 17 integration、Web、Compose 與 app／controller／backup images 全綠。內容真偽仍必須由實際部署操作員與外部測試產生，不宣稱本機可驗證語意內容。
 
 ## 2026-08-18：正式 release 補齊備份映像
 
