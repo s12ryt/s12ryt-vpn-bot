@@ -183,6 +183,24 @@ func (row *tlsIssuanceRowStub) Scan(destinations ...any) error {
 	return nil
 }
 
+func TestTLSSettingsStoreIssuedRequiresValidExpiry(t *testing.T) {
+	database := &coreSettingsDatabaseStub{row: &boolRow{value: true}}
+	store := NewTLSSettingsStore(nil, database, nil)
+
+	issued, err := store.Issued(context.Background())
+	if err != nil {
+		t.Fatalf("Issued() error = %v", err)
+	}
+	if !issued {
+		t.Fatal("Issued() = false, want true")
+	}
+	if !strings.Contains(database.query, "state = 'issued'") ||
+		!strings.Contains(database.query, "certificate_expires_at > now()") ||
+		strings.Contains(database.query, "ciphertext") {
+		t.Fatalf("Issued() query = %q", database.query)
+	}
+}
+
 type tlsOverviewRowStub struct{ values []any }
 
 func (row *tlsOverviewRowStub) Scan(destinations ...any) error {

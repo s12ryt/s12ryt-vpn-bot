@@ -135,6 +135,27 @@ func (store *TLSSettingsStore) GetOverview(ctx context.Context) (domain.TLSSetti
 	return result, nil
 }
 
+// TLSIssued satisfies the subscription TLS readiness gate.
+func (store *TLSSettingsStore) TLSIssued(ctx context.Context) (bool, error) {
+	return store.Issued(ctx)
+}
+
+// Issued reports whether a trusted certificate is currently valid: state
+// issued and expiry strictly in the future.
+func (store *TLSSettingsStore) Issued(ctx context.Context) (bool, error) {
+	if store == nil || store.database == nil {
+		return false, errors.New("TLS settings database is required")
+	}
+	var issued bool
+	if err := store.database.QueryRow(ctx, `
+		SELECT tls.state = 'issued' AND tls.certificate_expires_at > now()
+		FROM tls_settings AS tls
+		WHERE tls.singleton = TRUE`).Scan(&issued); err != nil {
+		return false, fmt.Errorf("read TLS issuance state: %w", err)
+	}
+	return issued, nil
+}
+
 // LoadForIssuance returns the decrypted ACME settings for the issuance
 // coordinator together with the current certificate expiry (zero when no
 // certificate has been issued yet).

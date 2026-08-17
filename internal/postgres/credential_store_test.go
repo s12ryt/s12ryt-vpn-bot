@@ -130,6 +130,8 @@ func TestCredentialStoreListsAllActiveEligibleBundlesInStableOrder(t *testing.T)
 		!strings.Contains(database.query, "eligible = TRUE") ||
 		!strings.Contains(database.query, "blocked = FALSE") ||
 		!strings.Contains(database.query, "fail_closed = FALSE") ||
+		!strings.Contains(database.query, "tls.state = 'issued'") ||
+		!strings.Contains(database.query, "tls.certificate_expires_at > now()") ||
 		!strings.Contains(database.query, "ORDER BY bundle.telegram_id") {
 		t.Fatalf("active credential list query is not stable and restricted: %q", database.query)
 	}

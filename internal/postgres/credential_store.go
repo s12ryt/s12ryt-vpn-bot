@@ -76,11 +76,15 @@ func (store *CredentialStore) ListActive(ctx context.Context) ([]singbox.User, e
 		JOIN vpn_users AS vpn_user ON vpn_user.telegram_id = bundle.telegram_id
 		JOIN quota_windows AS quota ON quota.telegram_id = bundle.telegram_id
 		CROSS JOIN traffic_health AS health
+		CROSS JOIN tls_settings AS tls
 		WHERE vpn_user.status = 'active'
 		  AND vpn_user.eligible = TRUE
 		  AND quota.blocked = FALSE
 		  AND health.singleton = TRUE
-		  AND health.fail_closed = FALSE`).Scan(&telegramIDs, &generations, &nonces, &ciphertexts); err != nil {
+		  AND health.fail_closed = FALSE
+		  AND tls.singleton = TRUE
+		  AND tls.state = 'issued'
+		  AND tls.certificate_expires_at > now()`).Scan(&telegramIDs, &generations, &nonces, &ciphertexts); err != nil {
 		return nil, fmt.Errorf("list active credential bundles: %w", err)
 	}
 	if len(telegramIDs) != len(generations) || len(telegramIDs) != len(nonces) || len(telegramIDs) != len(ciphertexts) {
