@@ -75,7 +75,9 @@ parse_web_public_url() {
     fi
   fi
   if [[ -n "$port" ]]; then
-    [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || fail "WEB_PUBLIC_URL port 格式無效"
+    if ! [[ "$port" =~ ^[0-9]+$ ]] || ! (( port >= 1 && port <= 65535 )); then
+      fail "WEB_PUBLIC_URL port 格式無效"
+    fi
   fi
   WEB_URL_HOST="$host"
   WEB_URL_PORT="$port"

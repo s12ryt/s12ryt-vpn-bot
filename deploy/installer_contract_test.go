@@ -150,6 +150,9 @@ func TestInstallerValidatesBootstrapValuesBeforeBotNetworkCall(t *testing.T) {
 	if validation < 0 || preflight < 0 || validation > preflight {
 		t.Fatal("bootstrap values must be validated before Bot and deployment preflight network calls")
 	}
+	if strings.Contains(contents, `]] && (( port >= 1 && port <= 65535 )) || fail`) {
+		t.Fatal("port validation must use an explicit conditional instead of an ambiguous AND-OR chain")
+	}
 }
 
 func TestInstallerRemovesBotTokenTemporaryFilesOnInterruption(t *testing.T) {
