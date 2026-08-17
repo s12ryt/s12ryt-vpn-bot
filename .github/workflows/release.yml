@@ -72,6 +72,8 @@ jobs:
             --load .
       - name: Scan sing-box image before publishing
         run: |
+          # amd64 is a faithful proxy for the multi-arch push: both platforms
+          # build the same Go dependency graph on the same distroless version.
           "$(go env GOPATH)/bin/trivy" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
             scan-local:singbox
       - name: Build and push traceable sing-box image
@@ -144,3 +146,6 @@ jobs:
               --title "sing-box ${{ steps.source.outputs.version }} with V2Ray stats" \
               --notes "${NOTES}"
           fi
+      - name: Remind owner about package visibility
+        run: |
+          echo "::notice::Newly created GHCR packages are private by default. If deployers must pull anonymously, open Packages -> s12ryt-sing-box / s12ryt-vpn-bot / s12ryt-vpn-core-controller -> Package settings -> Danger Zone -> Change visibility -> Public, or have hosts docker login ghcr.io with a read:packages token."

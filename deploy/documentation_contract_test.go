@@ -64,3 +64,20 @@ func readRepositoryFile(t *testing.T, name string) []byte {
 	}
 	return contents
 }
+
+func TestReleasePublicationVisibilityIsDocumented(t *testing.T) {
+	readme, err := os.ReadFile("../README.md")
+	if err != nil {
+		t.Fatalf("read README: %v", err)
+	}
+	if !strings.Contains(string(readme), "套件可見度") {
+		t.Fatal("README must document that first-release packages default to private and how to publish them")
+	}
+	workflow, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	if !strings.Contains(string(workflow), "Change visibility") {
+		t.Fatal("successful release runs must remind the owner to set package visibility")
+	}
+}

@@ -30,6 +30,10 @@
 
 - release workflow 的首次真實發佈與 digest 驗收（目前被上游 sing-box stable 依賴漏洞阻擋）。
 
+### 套件可見度（首次成功發佈後必做）
+
+GHCR 上由 workflow 首次推送建立的 package 一律是 **private**。首次 release 成功後，請在 GitHub 套件頁面（Packages → `s12ryt-sing-box`、`s12ryt-vpn-bot`、`s12ryt-vpn-core-controller` → Package settings → Danger Zone → Change visibility → Public）將需要匿名拉取的套件設為 public；或讓部署主機以具 `read:packages` 權限的 token 執行 `docker login ghcr.io`。未調整前，匿名 `docker pull ghcr.io/s12ryt/...` 會被拒絕。
+
 ## 開發需求
 
 - Go 1.26+
