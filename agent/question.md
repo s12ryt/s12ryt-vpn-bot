@@ -107,7 +107,7 @@
 
 - Hysteria2、TUIC、AnyTLS 共用同一份與連線名稱匹配的受信任 TLS 憑證。
 - 支援 sslip.io 零帳號模式、DuckDNS 免費固定網域與自有網域進階模式。
-- sslip.io 使用 HTTP-01；DuckDNS 使用 DNS-01，token 加密保存；自有網域依能力選 HTTP-01／DNS-01。
+- sslip.io 使用 HTTP-01；DuckDNS 使用 DNS-01，token 加密保存。第一版自有網域只支援 HTTP-01；通用 DNS provider 名稱與憑證尚無加密 schema／Web 設定，不得提供無法由正式簽發流程重建的 custom DNS-01。
 - 系統自動申請、續期憑證；續期成功後走一般 30 秒合併重啟。
 - 初次允許 ACME contact 無 Email，安裝前顯示候選 CA 條款並取得明確同意，再自動嘗試多個可配置 CA。
 - 所有無 Email 申請都失敗時，VPN 四協定全部停用；Bot 與管理面板維持可用並顯示重大告警。
@@ -173,6 +173,9 @@
 ## 16. 安裝與部署
 
 - 提供完整安裝精靈，檢查 Linux、Docker Compose、CPU 架構、DNS、IPv4／IPv6、必要 TCP／UDP ports、Telegram Bot 管理員權限、Web HTTPS 拓撲、ACME 條款與網域。
+- 首次安裝不強制指定資格群組；安裝器只驗證 Bot token 可取得有效 Bot 身分。Telegram 群組／頻道管理員權限延後到擁有者在 Web 啟用每一條資格規則時逐條強制驗證，未通過不得啟用。
+- 安裝器須收集 ACME mode、網域、challenge 與候選 CA 條款同意等非秘密參考值，先驗證模式、網域格式／DNS 與 challenge 前置條件，再寫入 `.env` 供 Web 設定核對。DuckDNS token 不由安裝器收集，仍只在 Web 以加密設定保存；自有網域預檢固定為 HTTP-01，不得提供尚無正式持久化能力的 custom DNS-01；安裝預檢不得冒充已完成正式簽發。
+- 安裝器須強制選擇並記錄 Web HTTPS 拓撲：第二 IP、自訂 HTTPS port 或 Cloudflare Tunnel。第二 IP 必須與 VPN 公開位址不同且為 `WEB_PUBLIC_URL` 的解析結果；自訂 port 必須是明確且非 443 的 HTTPS port；Tunnel 保留外部受信任 HTTPS 要求。拓撲未通過基本一致性驗證不得啟動。
 - 自動偵測值必須顯示並由部署者確認後才生成設定與啟動。
 - Compose 包含應用、PostgreSQL、自建 sing-box 核心及必要維護工作，不含公開反向代理。
 - Compose 使用受限核心控制 sidecar 執行 sing-box 設定檢查與重啟；只有該 sidecar 可接觸 Docker Engine，且只能控制設定中固定的 sing-box container。對外 Web 應用不得掛載或直接存取 Docker socket，只能透過共享、檔案權限受限的 Unix socket 發送封閉的 check／restart 命令。
