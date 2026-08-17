@@ -6,6 +6,7 @@
 - 使用者確認安裝器只驗 Bot 身分，資格群組管理員權限留給 Web 啟用規則時逐條強制驗證；ACME 預檢只保存 mode／domain／challenge／條款等非秘密參考值，不收集 DuckDNS token、不冒充簽發；Web HTTPS 必選第二 IP、自訂 port 或 Cloudflare Tunnel 並驗基本一致性。需求已同步 `agent/question.md`。
 - GREEN 新增 Telegram `getMe` 驗證、ACME 網域／DNS／候選 CA 條款與 challenge 前置檢查，以及 Web HTTPS 拓撲驗證。Bot token 只寫入 0700 安裝暫存目錄中的 0600 curl config，exit／HUP／INT／TERM 均清理；bootstrap Bot token、owner ID、公開 URL 與不可變 image 先採白名單驗證再做網路呼叫。
 - 品質審查確認正式 TLS schema／Web 只支援 DuckDNS provider token；custom DNS-01 無 provider 名稱／憑證持久化路徑。新增 RED 後將第一版自有網域固定為 HTTP-01，既有 `.env` 宣告 custom DNS-01 會 fail closed，文件明確說明能力邊界。
+- 首次 GitHub CI run `32074686153` 的 ShellCheck 以 SC2015 抓出 port 驗證使用 `A && B || fail` 的模糊控制流；新增直接契約 RED，改為明確 `if` 後，run `32074992110` 全綠：Go race／vet／ShellCheck／Linux build、PostgreSQL 17 integration、Web、Compose 與 app／controller／backup images 均通過。
 
 ## 2026-08-18：安裝精靈公開位址確認閘門
 
