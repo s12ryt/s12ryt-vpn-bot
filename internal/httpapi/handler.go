@@ -86,6 +86,7 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	var tlsSettings TLSSettingsManager
 	var dashboard DashboardProvider
 	var botSettings BotSettingsManager
+	var realitySearch RealitySearchManager
 	for _, option := range protections {
 		switch value := option.(type) {
 		case *LoginProtection:
@@ -112,6 +113,8 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 			dashboard = value
 		case BotSettingsManager:
 			botSettings = value
+		case RealitySearchManager:
+			realitySearch = value
 		}
 	}
 	mux := http.NewServeMux()
@@ -163,6 +166,9 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	}
 	if sessions != nil && botSettings != nil {
 		registerBotSettingsRoutes(mux, sessions, botSettings)
+	}
+	if sessions != nil && realitySearch != nil {
+		registerRealitySearchRoutes(mux, sessions, realitySearch)
 	}
 	return mux
 }
