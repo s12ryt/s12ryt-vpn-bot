@@ -1,5 +1,12 @@
 # 操作與驗證紀錄
 
+## 2026-08-18：安裝精靈公開位址確認閘門
+
+- 懷疑式對照 `agent/question.md` 發現既有 `install.sh` 每個 address family 只查一個外部服務，僅列印結果且未要求部署者確認；先新增 deploy contract RED，精確證明缺少多來源、人工修改／確認及 Compose 前順序閘門。
+- GREEN 將 IPv4／IPv6 各自向 api.ipify.org、ifconfig.co 與 icanhazip.com 查詢，嚴格驗證回應；至少兩個來源一致才提供可信候選。部署者逐一輸入最終值，可停用單一 family，但不可同時停用；未明確確認時在 `docker compose config`／pull／up 前 fail closed。
+- 新建 `.env` 保存 `PUBLIC_IPV4`／`PUBLIC_IPV6` 作 Web「VPN 與網路」設定核對資料，不自動繞過完整核心、TLS／REALITY 驗證。品質複查同時移除 install.sh 遺留、已無權威性的 `BACKUP_RETENTION_DAYS=7`。
+- 驗證：deploy RED→GREEN、`go test ./...`、`go vet ./...`、Windows server／backup／restore build、`bash -n`、前端 Vitest 14/14、ESLint與Vite build全綠；ShellCheck與真實 Linux互動流程由GitHub CI補證。
+
 ## 2026-08-18：部署後驗收 fail-closed 證據閘門
 
 - 懷疑式複查發現 `scripts/post-deploy-check.sh` 完成容器、Telegram、TLS、訂閱與設定檢查後，只列印「需人工續驗」卻仍以 0 結束；CI 或操作員可能把局部檢查誤判為完整驗收通過。
