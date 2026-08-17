@@ -46,5 +46,5 @@
 - [x] 強化 release 來源解析：GitHub API 使用 workflow token 並對 API／tarball／tag 查詢做 transient failure 重試，避免 HTTP 504 在建置前中止。
 - [x] 完成 GitHub Actions 一般 CI：Linux race／vet／ShellCheck／build、PostgreSQL 17 migration 012 與 600 人並行流量整合、Web、Compose 及三個應用映像建置全綠。
 - [x] 完成正式 release 發佈前驗收：run `32040495443` 以固定 v1.13.19 binary 通過 1,000 使用者、四協定、雙棧、8 inbound 的 `sing-box check`；Trivy 隨後正確阻擋 16 HIGH／1 CRITICAL，所有 push skipped，package API 404 證明沒有誤發。
-- [ ] 【外部阻塞】上游 sing-box stable 修復有 fixed version 的依賴漏洞後，由 weekly workflow 完成正式 GHCR release；不得放寬 Trivy 或私改上游 dependency graph。
-- [ ] 【外部阻塞】在實際 Linux 主機以 Docker、真實 Telegram Bot／群組與 ACME 網域執行部署後驗收；本機沒有 Docker 與正式秘密，不得虛報完成。
+- [ ] 【外部阻塞，2026-08-18 複查仍成立】上游 sing-box stable 修復有 fixed version 的依賴漏洞後，由 weekly workflow 完成正式 GHCR release；最新 stable 仍為 v1.13.19 且受影響 dependency versions 未變，不得放寬 Trivy 或私改上游 dependency graph。
+- [ ] 【外部阻塞，2026-08-18 複查仍成立】在實際 Linux 主機以 Docker、真實 Telegram Bot／群組與 ACME 網域執行部署後驗收；本機仍無 Docker，且未提供 BOT_TOKEN／APP_MASTER_KEY／DATABASE_URL／WEB_PUBLIC_URL，不得虛報完成。

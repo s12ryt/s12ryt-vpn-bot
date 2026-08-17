@@ -1,5 +1,12 @@
 # 操作與驗證紀錄
 
+## 2026-08-18：外部阻塞重新驗證
+
+- GitHub 官方 Releases API 再次確認最新 stable 仍為 `v1.13.19`（published `2026-08-17T09:47:06Z`，commit `b5ebaa1fc0f2b94256180b95468e73ef53caa27d`）；沒有可供正式 release 使用的新 stable。
+- 直接讀取官方 `v1.13.19` `go.mod`，受 Trivy 阻擋的版本仍為 `golang.org/x/crypto v0.48.0`、`golang.org/x/net v0.50.0`、`golang.org/x/text v0.34.0`、`google.golang.org/grpc v1.79.1`。因此維持嚴格 HIGH／CRITICAL gate，不採 prerelease、不忽略 CVE、不私改上游 dependency graph。
+- 本機重新執行環境檢查：`docker`／`docker compose` 指令仍不存在；`BOT_TOKEN`、`APP_MASTER_KEY`、`DATABASE_URL`、`WEB_PUBLIC_URL` 均未提供。故真實 Linux／Docker／Telegram／ACME 部署後驗收仍無可執行環境，不得虛報完成。
+- release weekly workflow 與部署後驗收腳本已就緒；這次檢查沒有出現可安全推進正式發佈或真實部署驗收的新條件。
+
 ## 2026-08-17：1,000 使用者真實核心檢查與發佈閘門實證
 
 - release run `32039261580` 首次走到真實 `sing-box check` 時，mode 0600 的測試私鑰由 runner 擁有，而 distroless 預設 nonroot UID 不同，故讀取 `/run/tls/privkey.pem` 被拒。先以契約測試建立 RED，再維持私鑰 0600，讓隔離 check container 使用 `--user "$(id -u):$(id -g)"`；沒有放寬檔案權限，network-none／read-only／no-new-privileges／cap-drop ALL 仍保留。
