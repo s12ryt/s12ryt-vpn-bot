@@ -41,6 +41,8 @@ func TestMigrateAppliesUnseenMigrationAndRecordsVersion(t *testing.T) {
 		"duckdns_token_ciphertext",
 		"CREATE TABLE IF NOT EXISTS bot_settings",
 		"token_ciphertext",
+		"CREATE TABLE IF NOT EXISTS backup_settings",
+		"retention_days",
 		"INSERT INTO schema_migrations",
 		"pg_advisory_unlock",
 	} {

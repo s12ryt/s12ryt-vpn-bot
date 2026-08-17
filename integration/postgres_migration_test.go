@@ -42,7 +42,7 @@ func TestMigrationsApplyAndRemainIdempotent(t *testing.T) {
 	if err := connection.QueryRow(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count schema_migrations: %v", err)
 	}
-	if count < 9 {
-		t.Fatalf("schema_migrations count = %d, want at least 9", count)
+	if count < 12 {
+		t.Fatalf("schema_migrations count = %d, want at least 12", count)
 	}
 }
