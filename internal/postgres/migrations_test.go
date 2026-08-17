@@ -37,6 +37,8 @@ func TestMigrateAppliesUnseenMigrationAndRecordsVersion(t *testing.T) {
 		"reality_private_key_ciphertext",
 		"CREATE TABLE IF NOT EXISTS traffic_ingestion_batches",
 		"CREATE TABLE IF NOT EXISTS traffic_health",
+		"CREATE TABLE IF NOT EXISTS tls_settings",
+		"duckdns_token_ciphertext",
 		"INSERT INTO schema_migrations",
 		"pg_advisory_unlock",
 	} {
