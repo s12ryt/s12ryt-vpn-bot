@@ -87,3 +87,34 @@ func TestReleaseWorkflowScansBeforePublishingImages(t *testing.T) {
 		t.Fatal("workflow must load a locally built image for the pre-publication scan")
 	}
 }
+
+func TestPackageCleanupWorkflowIsConstrained(t *testing.T) {
+	body, err := os.ReadFile("../.github/workflows/package-cleanup.yml")
+	if err != nil {
+		t.Fatalf("read package cleanup workflow: %v", err)
+	}
+	workflow := string(body)
+	for _, required := range []string{
+		"workflow_dispatch:", "packages: write", "s12ryt-sing-box",
+		"/user/packages/container/s12ryt-sing-box/versions",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Errorf("package cleanup workflow missing %q", required)
+		}
+	}
+	if strings.Contains(workflow, "delete:packages") {
+		t.Fatal("workflow must use GITHUB_TOKEN, not a PAT secret")
+	}
+	if regexp.MustCompile(`inputs\.[A-Za-z_]+`).FindAllString(workflow, -1) == nil {
+		t.Fatal("workflow must accept a constrained tag input")
+	}
+	for _, forbidden := range []string{"inputs.package", "inputs.owner"} {
+		if strings.Contains(workflow, forbidden) {
+			t.Errorf("workflow input %q would allow arbitrary package targeting", forbidden)
+		}
+	}
+	action := regexp.MustCompile(`uses: [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@([0-9a-f]{40})`)
+	if uses := strings.Count(workflow, "uses: "); uses > 0 && len(action.FindAllStringSubmatch(workflow, -1)) != uses {
+		t.Fatal("all cleanup actions must be pinned to full commit SHAs")
+	}
+}

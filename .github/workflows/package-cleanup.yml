@@ -1,0 +1,57 @@
+name: Package cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to delete from ghcr.io (e.g. 1.13.18-45ca32dcb966)"
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: package-cleanup
+  cancel-in-progress: false
+
+jobs:
+  delete-tagged-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete tagged package version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${TAG}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'; then
+            echo "invalid tag format" >&2
+            exit 1
+          fi
+          VERSIONS="$(gh api /user/packages/container/s12ryt-sing-box/versions --paginate)"
+          COUNT="$(printf '%s' "${VERSIONS}" | jq --arg tag "${TAG}" '[.[] | select((.metadata.container.tags // []) | index($tag))] | length')"
+          if [ "${COUNT}" -eq 0 ]; then
+            echo "tag ${TAG} not found; nothing to delete"
+            exit 0
+          fi
+          if [ "${COUNT}" -gt 1 ]; then
+            echo "tag ${TAG} maps to ${COUNT} versions; refusing ambiguous deletion" >&2
+            exit 1
+          fi
+          VERSION_ID="$(printf '%s' "${VERSIONS}" | jq -r --arg tag "${TAG}" '[.[] | select((.metadata.container.tags // []) | index($tag))][0].id')"
+          echo "deleting version ${VERSION_ID} (tag ${TAG})"
+          gh api -X DELETE "/user/packages/container/s12ryt-sing-box/versions/${VERSION_ID}"
+      - name: Verify tag removed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          sleep 5
+          REMAINING="$(gh api /user/packages/container/s12ryt-sing-box/versions --paginate | jq --arg tag "${TAG}" '[.[] | select((.metadata.container.tags // []) | index($tag))] | length')"
+          if [ "${REMAINING}" -ne 0 ]; then
+            echo "tag ${TAG} still present after deletion" >&2
+            exit 1
+          fi
+          echo "tag ${TAG} removed"
