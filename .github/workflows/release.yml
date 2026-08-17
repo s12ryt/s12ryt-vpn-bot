@@ -161,6 +161,22 @@ jobs:
           docker buildx build --platform linux/amd64,linux/arm64 \
             --sbom=true --provenance=mode=max --file Dockerfile \
             --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}" --push .
+      - name: Pre-build backup image for scanning
+        run: |
+          docker buildx build \
+            --platform linux/amd64 \
+            --file Dockerfile.backup \
+            --tag scan-local:backup \
+            --load .
+      - name: Scan backup image before publishing
+        run: |
+          "$(go env GOPATH)/bin/trivy" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL \
+            scan-local:backup
+      - name: Build and push backup image
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            --sbom=true --provenance=mode=max --file Dockerfile.backup \
+            --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-backup:${{ steps.source.outputs.app_tag }}" --push .
       - name: Pre-build restricted controller image for scanning
         run: |
           docker buildx build \
@@ -179,11 +195,13 @@ jobs:
             --sbom=true --provenance=mode=max --file Dockerfile.controller \
             --build-arg "SINGBOX_IMAGE=ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box@${{ steps.image.outputs.digest }}" \
             --tag "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}" --push .
-      - name: Capture application and controller digests
+      - name: Capture application, backup and controller digests
         run: |
           APP_DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot:${{ steps.source.outputs.app_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          BACKUP_DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-backup:${{ steps.source.outputs.app_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           CONTROLLER_DIGEST="$(docker buildx imagetools inspect "ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller:${{ steps.source.outputs.app_tag }}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
           echo "application_digest=${APP_DIGEST}" >> .release/source-metadata.txt
+          echo "backup_digest=${BACKUP_DIGEST}" >> .release/source-metadata.txt
           echo "controller_digest=${CONTROLLER_DIGEST}" >> .release/source-metadata.txt
       - name: Publish source and image metadata
         env:
@@ -202,4 +220,4 @@ jobs:
           fi
       - name: Remind owner about package visibility
         run: |
-          echo "::notice::Newly created GHCR packages are private by default. If deployers must pull anonymously, open Packages -> s12ryt-sing-box / s12ryt-vpn-bot / s12ryt-vpn-core-controller -> Package settings -> Danger Zone -> Change visibility -> Public, or have hosts docker login ghcr.io with a read:packages token."
+          echo "::notice::Newly created GHCR packages are private by default. If deployers must pull anonymously, open Packages -> s12ryt-sing-box / s12ryt-vpn-bot / s12ryt-vpn-backup / s12ryt-vpn-core-controller -> Package settings -> Danger Zone -> Change visibility -> Public, or have hosts docker login ghcr.io with a read:packages token."

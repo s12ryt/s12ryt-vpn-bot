@@ -20,6 +20,7 @@ func TestReleaseWorkflowBuildsTraceableMultiArchitectureImages(t *testing.T) {
 		"ghcr.io/${{ github.repository_owner }}/s12ryt-sing-box",
 		"ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-bot",
 		"ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-core-controller",
+		"ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-backup",
 		"attestations: write", "packages: write", "id-token: write",
 	} {
 		if !strings.Contains(workflow, required) {
@@ -32,6 +33,41 @@ func TestReleaseWorkflowBuildsTraceableMultiArchitectureImages(t *testing.T) {
 	action := regexp.MustCompile(`uses: [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@([0-9a-f]{40})`)
 	if uses := strings.Count(workflow, "uses: "); uses == 0 || len(action.FindAllStringSubmatch(workflow, -1)) != uses {
 		t.Fatal("all release actions must be pinned to full commit SHAs")
+	}
+}
+
+func TestReleaseWorkflowScansAndPublishesBackupImage(t *testing.T) {
+	body, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	workflow := string(body)
+	localBuild := strings.Index(workflow, "Pre-build backup image for scanning")
+	scan := strings.Index(workflow, "Scan backup image before publishing")
+	push := strings.Index(workflow, "Build and push backup image")
+	if localBuild == -1 || scan == -1 || push == -1 {
+		t.Fatal("release workflow must build, scan, then publish the backup image")
+	}
+	if !(localBuild < scan && scan < push) {
+		t.Fatal("backup image publication must be gated by its local Trivy scan")
+	}
+	section := workflow[localBuild:]
+	for _, required := range []string{
+		"--file Dockerfile.backup",
+		"--tag scan-local:backup",
+		"trivy\" image --exit-code 1 --ignore-unfixed --severity HIGH,CRITICAL",
+		"--platform linux/amd64,linux/arm64",
+		"--sbom=true --provenance=mode=max",
+		"ghcr.io/${{ github.repository_owner }}/s12ryt-vpn-backup:${{ steps.source.outputs.app_tag }}",
+		"backup_digest=",
+	} {
+		if !strings.Contains(section, required) {
+			t.Errorf("backup release section missing %q", required)
+		}
+	}
+	visibilityNotice := strings.Index(workflow, "Remind owner about package visibility")
+	if visibilityNotice == -1 || !strings.Contains(workflow[visibilityNotice:], "s12ryt-vpn-backup") {
+		t.Fatal("first-publication notice must include the backup package")
 	}
 }
 
