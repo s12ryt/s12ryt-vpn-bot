@@ -92,7 +92,7 @@ func (service *Service) Obtain(ctx context.Context, settings Settings) (Result, 
 	if service == nil || service.issuer == nil || service.installer == nil || service.now == nil {
 		return Result{}, ErrInvalidSettings
 	}
-	settings, err := validateSettings(settings)
+	settings, err := ValidateSettings(settings)
 	if err != nil {
 		return Result{}, err
 	}
@@ -117,7 +117,9 @@ func (service *Service) Obtain(ctx context.Context, settings Settings) (Result, 
 	return Result{}, ErrIssuanceFailed
 }
 
-func validateSettings(settings Settings) (Settings, error) {
+// ValidateSettings normalizes and enforces the persisted TLS configuration
+// rules before any database write or network issuance attempt.
+func ValidateSettings(settings Settings) (Settings, error) {
 	settings.Domain = strings.ToLower(strings.TrimSpace(settings.Domain))
 	settings.Email = strings.TrimSpace(settings.Email)
 	settings.DNSProviderName = strings.ToLower(strings.TrimSpace(settings.DNSProviderName))
