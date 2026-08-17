@@ -1,5 +1,13 @@
 # 操作與驗證紀錄
 
+## 2026-08-18：REALITY 目前目標健康監控
+
+- 需求澄清確認每 1 小時檢查一次，只在健康狀態轉換時通知：首次故障一次、持續故障不重複、恢復一次；未設定核心安全略過，擁有者確認後才可切換，系統永不自動修改目標。已同步 `agent/question.md`。
+- `internal/reality.HealthMonitor` 沿用既有 DNS／TCP443／TLS1.3／憑證名稱／延遲 prober；啟動立即檢查、之後每小時，單輪錯誤不殺服務。RED/GREEN 覆蓋未設定、故障／持續故障／恢復、可取消排程與缺依賴。
+- migration 013 建立 `reality_health` singleton，保存 target、healthy、last checked/transition/notification 與 pending transition。`RealityHealthStore` 交易鎖定後回傳故障／恢復；通知與稽核成功才確認 pending，避免狀態已提交後程序中斷造成通知永久遺失。新目標健康建立無通知基準，新目標首次失敗仍通知。
+- `TelegramHealthNotifier` 對所有 active 管理者逐一傳送固定訊息；故障訊息明確要求在管理面板確認後再切換並說明不會自動切換。單一私訊失敗不重送給已成功者，只以 attempted/failed 稽核；收件人查詢或稽核失敗則保留 pending 等下輪重試。
+- 正式 server 以 `RealityHealthStore`、既有 TLS prober、AuthStore、swap-aware Bot client 與 AuditStore 組裝必要 goroutine。全量 `go test ./...`、`go vet ./...`、Windows server build、integration tagged compile 與前端 Vitest 14/14／lint／build通過；真實 migration 013/race 待 GitHub Linux CI。
+
 ## 2026-08-18：外部阻塞重新驗證
 
 - GitHub 官方 Releases API 再次確認最新 stable 仍為 `v1.13.19`（published `2026-08-17T09:47:06Z`，commit `b5ebaa1fc0f2b94256180b95468e73ef53caa27d`）；沒有可供正式 release 使用的新 stable。

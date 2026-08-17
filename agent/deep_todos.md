@@ -44,7 +44,8 @@
 - [x] 完成每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 封存、0600 原子落盤、可調保留期與完整性驗證後還原命令。
 - [x] 補齊 owner-only Web 備份保留期管理：migration 012 預設 7 日、每次備份動態重讀 PostgreSQL、設定不可用時仍備份但跳過清理、actor 稽核；修正 backup container 以 host network 連線 loopback PostgreSQL。
 - [x] 強化 release 來源解析：GitHub API 使用 workflow token 並對 API／tarball／tag 查詢做 transient failure 重試，避免 HTTP 504 在建置前中止。
-- [x] 完成 GitHub Actions 一般 CI：Linux race／vet／ShellCheck／build、PostgreSQL 17 migration 012 與 600 人並行流量整合、Web、Compose 及三個應用映像建置全綠。
+- [x] 完成 GitHub Actions 一般 CI：Linux race／vet／ShellCheck／build、PostgreSQL 17 migration 013 與 600 人並行流量整合、Web、Compose 及三個應用映像建置全綠。
 - [x] 完成正式 release 發佈前驗收：run `32040495443` 以固定 v1.13.19 binary 通過 1,000 使用者、四協定、雙棧、8 inbound 的 `sing-box check`；Trivy 隨後正確阻擋 16 HIGH／1 CRITICAL，所有 push skipped，package API 404 證明沒有誤發。
+- [x] 以 TDD 補齊 REALITY 目前目標每小時健康檢查：沿用 TLS 1.3／443 prober，migration 013 持久保存目標、健康與 pending transition；只在故障／恢復轉換時向 active 管理者逐一通知並稽核，成功後確認 pending，單一私訊失敗僅記 failed 計數，從不自動切換；正式 server 排程已接線。
 - [ ] 【外部阻塞，2026-08-18 複查仍成立】上游 sing-box stable 修復有 fixed version 的依賴漏洞後，由 weekly workflow 完成正式 GHCR release；最新 stable 仍為 v1.13.19 且受影響 dependency versions 未變，不得放寬 Trivy 或私改上游 dependency graph。
 - [ ] 【外部阻塞，2026-08-18 複查仍成立】在實際 Linux 主機以 Docker、真實 Telegram Bot／群組與 ACME 網域執行部署後驗收；本機仍無 Docker，且未提供 BOT_TOKEN／APP_MASTER_KEY／DATABASE_URL／WEB_PUBLIC_URL，不得虛報完成。
