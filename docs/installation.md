@@ -20,9 +20,15 @@ chmod +x scripts/install.sh scripts/post-deploy-check.sh
 ./scripts/install.sh
 ```
 
-安裝器會先分別向 `api.ipify.org`、`ifconfig.co` 與 `icanhazip.com` 查詢公開 IPv4／IPv6。只有至少兩個外部來源回報相同位址時，該值才會列為可信候選；部署者必須逐一輸入確認值，也可留空停用單一 address family。IPv4 與 IPv6 不可同時停用，最終未明確確認時腳本會在 Compose 驗證與啟動前中止。
+安裝器會先分別向 `api.ipify.org`、`ifconfig.co` 與 `icanhazip.com` 查詢公開 IPv4／IPv6。只有至少兩個外部來源回報相同位址時，該值才會列為可信候選；部署者可直接按 Enter 採用候選、輸入其他位址修改，或輸入 `-` 停用單一 address family。IPv4 與 IPv6 不可同時停用，最終未明確確認時腳本會在 Compose 驗證與啟動前中止。
 
-首次執行還會互動收集 Bot token、根擁有者 Telegram ID、公開 HTTPS URL 與 sing-box image，並以 `0600` 建立 `.env`。確認後的 `PUBLIC_IPV4`／`PUBLIC_IPV6` 會保留在新建的 `.env`，供擁有者完成 Web「VPN 與網路」設定時核對；它們不會繞過 Web 對完整核心、TLS 與 REALITY 設定的驗證。腳本不會把 Bot token 或 `APP_MASTER_KEY` 印到終端。既有 `.env` 不會被覆蓋。
+首次執行還會互動收集 Bot token、根擁有者 Telegram ID、公開 HTTPS URL 與 sing-box image，並以 `0600` 建立 `.env`。確認後的 `PUBLIC_IPV4`／`PUBLIC_IPV6` 會保留在新建的 `.env`，供擁有者完成 Web「VPN 與網路」設定時核對；它們不會繞過 Web 對完整核心、TLS 與 REALITY 設定的驗證。腳本不會把 Bot token 或 `APP_MASTER_KEY` 印到終端。重跑時既有 `.env` 不會被覆蓋；腳本會驗證其中保存的公開位址並要求再次確認，而不會收集但忽略新的位址。
+
+安裝器會實際呼叫 Telegram `getMe` 驗證 token 對應有效 Bot 身分。資格群組可在啟動後由擁有者於 Web 新增；每條規則仍須通過 Bot administrator／creator 驗證才可啟用。
+
+ACME 預檢會收集 `sslip_io`、`duckdns` 或 `custom` mode、VPN TLS 網域與 challenge，驗證 DNS，顯示 [Let's Encrypt](https://letsencrypt.org/repository/) 與 [ZeroSSL](https://zerossl.com/terms/) 條款並要求明確同意。`sslip_io` 與自有網域使用 HTTP-01；DuckDNS 使用 DNS-01。自有網域目前只支援 HTTP-01，因通用 DNS provider 憑證尚未實作加密儲存與 Web 設定，不得在 `.env` 宣告 custom DNS-01。安裝器不收集 DuckDNS token；token 仍只在 Web 加密保存。`.env` 內的 `ACME_*_REFERENCE` 只是供 Web 核對的非秘密參考值，不代表憑證已簽發，也不會解除 TLS 未核發閘門。
+
+Web HTTPS 必須選擇 `WEB_HTTPS_TOPOLOGY`：`second_ip`（第二 IP）、`custom_port`（自訂 HTTPS port）或 `cloudflare_tunnel`（Cloudflare Tunnel）。第二 IP 必須不同於 VPN 公開位址且是 `WEB_PUBLIC_URL` 的 DNS 結果；自訂 port 必須明確、不可為 443，也不可與 TCP 80／8443／35699 衝突。這些值只記錄拓撲意圖，外部反向代理仍依 [`docs/reverse-proxy.md`](reverse-proxy.md) 部署。
 
 安裝器會在啟動前檢查作業系統、CPU 架構、Docker 權限、Compose、必要環境值、DNS、公開 IPv4／IPv6，以及四協定與 Web ports；接著先執行 `docker compose config --quiet`，再 pull/build/up。
 

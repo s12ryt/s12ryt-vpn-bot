@@ -17,8 +17,8 @@
 - 非 root 多階段映像與 Compose 安全拓撲契約；只有受限 sidecar 可存取 Docker socket。
 - GitHub release workflow 解析最新穩定 sing-box 原始碼，沿用官方 Linux build tags／linker flags與必要的 `with_purego`，另啟用 `with_v2ray_api`，產生 amd64/arm64 GHCR images、SBOM、provenance與漏洞掃描。
 - 每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 加密、Web 動態可調保留期與完整性驗證後還原。
-- 主機安裝腳本（環境／架構／埠位檢查、三個外部來源交叉偵測公開 IPv4／IPv6、部署者修改與確認、0600 `.env` 產生）與部署後自動檢查腳本（Telegram、TLS、訂閱、核心邊界），見 [`docs/installation.md`](docs/installation.md)。
-- ACME 簽發服務與 lego adapter：條款同意、多 CA 備援、sslip.io HTTP-01／DuckDNS DNS-01、憑證與私鑰／網域／有效期驗證，失敗不安裝。
+- 主機安裝腳本（環境／架構／埠位檢查、三個外部來源交叉偵測公開 IPv4／IPv6、部署者修改與確認、Telegram Bot 身分、ACME 非秘密參考值與 Web HTTPS 拓撲預檢、0600 `.env` 產生）與部署後自動檢查腳本（Telegram、TLS、訂閱、核心邊界），見 [`docs/installation.md`](docs/installation.md)。
+- ACME 簽發服務與 lego adapter：條款同意、多 CA 備援、sslip.io／自有網域 HTTP-01、DuckDNS DNS-01、憑證與私鑰／網域／有效期驗證，失敗不安裝；通用 custom DNS-01 尚未提供 provider 憑證持久化，安裝器不會宣傳不可用選項。
 - Bot Token 安全熱切換：AES-GCM 加密保存、`getMe` 驗證同一 Bot 身分後先持久化再原子替換 live client，owner Web「Bot 與 Token」頁操作並留稽核。
 - TLS 未核發閘門：核心 active 快照與訂閱輸出在受信任憑證核發且未過期前一律不輸出節點。
 - Web 營運總覽：使用者／待審／封鎖統計、TLS 與核心設定狀態與未完成警示。

@@ -79,6 +79,26 @@ func TestInstallationGuideSeparatesAutomatedAndManualAcceptance(t *testing.T) {
 	}
 }
 
+func TestInstallationGuideExplainsACMEAndWebTopologyPreflight(t *testing.T) {
+	contents := string(readRepositoryFile(t, filepath.Join("docs", "installation.md")))
+	for _, required := range []string{
+		"Let's Encrypt",
+		"ZeroSSL",
+		"不收集 DuckDNS token",
+		"不代表憑證已簽發",
+		"第二 IP",
+		"自訂 HTTPS port",
+		"Cloudflare Tunnel",
+		"WEB_HTTPS_TOPOLOGY",
+		"自有網域目前只支援 HTTP-01",
+		"通用 DNS provider 憑證尚未實作",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Errorf("installation guide missing ACME/Web topology preflight detail %q", required)
+		}
+	}
+}
+
 func readRepositoryFile(t *testing.T, name string) []byte {
 	t.Helper()
 	contents, err := os.ReadFile(filepath.Join("..", name))
