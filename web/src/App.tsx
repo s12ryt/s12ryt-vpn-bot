@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
+import { Check, Globe, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -65,7 +65,21 @@ type CoreSettings = {
   has_reality_private_key: boolean
 }
 
-type WorkspaceView = 'users' | 'administrators' | 'settings' | 'core' | 'audit'
+type TLSSettings = {
+  configured: boolean
+  mode: 'sslip_io' | 'duckdns' | 'custom'
+  domain: string
+  challenge: 'http_01' | 'dns_01'
+  email: string
+  ca_directory_urls: string[]
+  terms_accepted: boolean
+  has_duckdns_token: boolean
+  state: 'unissued' | 'issued' | 'failed'
+  certificate_expires_at: string
+  last_issued_ca: string
+}
+
+type WorkspaceView = 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'audit'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -109,6 +123,8 @@ function App() {
   const [qualificationRules, setQualificationRules] = useState<QualificationRule[]>([])
   const [coreSettings, setCoreSettings] = useState<CoreSettings | null>(null)
   const [realityPrivateKey, setRealityPrivateKey] = useState('')
+  const [tlsSettings, setTLSSettings] = useState<TLSSettings | null>(null)
+  const [duckdnsToken, setDuckdnsToken] = useState('')
   const [qualificationChatID, setQualificationChatID] = useState('')
   const [qualificationChatType, setQualificationChatType] = useState<'supergroup' | 'channel'>('supergroup')
   const [qualificationTitle, setQualificationTitle] = useState('')
@@ -169,6 +185,16 @@ function App() {
     if (!payload || typeof payload.configured !== 'boolean' || typeof payload.has_reality_private_key !== 'boolean') throw new Error('core settings invalid')
     setCoreSettings(payload)
     setRealityPrivateKey('')
+  }
+
+  async function loadTLSSettings() {
+    const response = await fetch('/api/settings/tls', { credentials: 'include' })
+    if (!response.ok) throw new Error('tls settings unavailable')
+    const payload = await response.json() as { settings: TLSSettings }
+    const settings = payload.settings
+    if (!settings || !['sslip_io', 'duckdns', 'custom'].includes(settings.mode) || !['unissued', 'issued', 'failed'].includes(settings.state)) throw new Error('tls settings invalid')
+    setTLSSettings(settings)
+    setDuckdnsToken('')
   }
 
   useEffect(() => {
@@ -238,6 +264,8 @@ function App() {
       setQualificationRules([])
       setCoreSettings(null)
       setRealityPrivateKey('')
+      setTLSSettings(null)
+      setDuckdnsToken('')
       setView('users')
       setLoginCode('')
     } catch {
@@ -286,6 +314,16 @@ function App() {
       setView('core')
     } catch {
       setError('無法載入 VPN 核心設定。')
+    }
+  }
+
+  async function showTLSSettings() {
+    setError('')
+    try {
+      await loadTLSSettings()
+      setView('tls')
+    } catch {
+      setError('無法載入 TLS 憑證設定。')
     }
   }
 
@@ -378,6 +416,41 @@ function App() {
     }
   }
 
+  function updateTLSSetting<K extends keyof TLSSettings>(key: K, value: TLSSettings[K]) {
+    setTLSSettings((current) => current ? { ...current, [key]: value } : current)
+  }
+
+  function changeTLSMode(mode: TLSSettings['mode']) {
+    setTLSSettings((current) => {
+      if (!current) return current
+      const next: TLSSettings = { ...current, mode }
+      if (mode === 'duckdns') next.challenge = 'dns_01'
+      if (mode === 'sslip_io') next.challenge = 'http_01'
+      return next
+    })
+  }
+
+  async function saveTLSSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!tlsSettings) return
+    setError('')
+    try {
+      const response = await fetch('/api/settings/tls', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: tlsSettings.mode, domain: tlsSettings.domain, challenge: tlsSettings.challenge,
+          email: tlsSettings.email, ca_directory_urls: tlsSettings.ca_directory_urls,
+          terms_accepted: tlsSettings.terms_accepted, duckdns_token: duckdnsToken,
+        }),
+      })
+      if (!response.ok) throw new Error('tls settings update failed')
+      await loadTLSSettings()
+    } catch {
+      setError('TLS 設定儲存失敗，請確認網域、模式與條款同意。')
+    }
+  }
+
   async function setAdministratorRole(id: number, role: AdministratorIdentity['role']) {
     setError('')
     try {
@@ -422,6 +495,7 @@ function App() {
             {identity?.role === 'owner' && <button className={view === 'administrators' ? 'nav-active' : ''} type="button" onClick={() => void showAdministrators()}><UserCog size={18} />管理員</button>}
             {identity?.role === 'owner' && <button className={view === 'settings' ? 'nav-active' : ''} type="button" onClick={() => void showManagementSettings()}><Settings2 size={18} />資格群組</button>}
             {identity?.role === 'owner' && <button className={view === 'core' ? 'nav-active' : ''} type="button" onClick={() => void showCoreSettings()}><Network size={18} />VPN 與網路</button>}
+            {identity?.role === 'owner' && <button className={view === 'tls' ? 'nav-active' : ''} type="button" onClick={() => void showTLSSettings()}><Globe size={18} />TLS 憑證</button>}
             <button className={view === 'audit' ? 'nav-active' : ''} type="button" onClick={() => void showAudit()}><ScrollText size={18} />稽核紀錄</button>
           </nav>
           {view === 'users' ? <section className="workspace">
@@ -520,6 +594,27 @@ function App() {
               <p className="secret-state">{coreSettings.has_reality_private_key ? 'REALITY 私鑰已安全儲存' : '尚未設定 REALITY 私鑰'}</p>
               <label className="toggle-control"><input aria-label="允許 IPv4 出站" type="checkbox" checked={coreSettings.allow_ipv4_outbound} onChange={(event) => updateCoreSetting('allow_ipv4_outbound', event.target.checked)} /><span>允許 IPv4 出站</span></label>
               <button className="primary-action" type="submit">儲存 VPN 設定</button>
+            </form>}
+          </section> : view === 'tls' ? <section className="workspace">
+            <div className="workspace-heading"><div><span className="section-label">受信任 TLS 憑證</span><h1>TLS 與網域</h1></div></div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            {tlsSettings && <form className="settings-form" onSubmit={(event) => void saveTLSSettings(event)}>
+              <div className="settings-grid">
+                <label>憑證模式<select aria-label="憑證模式" value={tlsSettings.mode} onChange={(event) => changeTLSMode(event.target.value as TLSSettings['mode'])}>
+                  <option value="sslip_io">sslip.io（HTTP-01）</option>
+                  <option value="duckdns">DuckDNS（DNS-01）</option>
+                  <option value="custom">自有網域</option>
+                </select></label>
+                <label>連線網域<input aria-label="連線網域" type="text" value={tlsSettings.domain} onChange={(event) => updateTLSSetting('domain', event.target.value)} placeholder="node.duckdns.org" /></label>
+                <label>ACME Email（可留空）<input aria-label="ACME Email" type="email" value={tlsSettings.email} onChange={(event) => updateTLSSetting('email', event.target.value)} placeholder="owner@example.com" /></label>
+                <label>CA 目錄（每行一個）<textarea aria-label="CA 目錄" rows={3} value={tlsSettings.ca_directory_urls.join('\n')} onChange={(event) => updateTLSSetting('ca_directory_urls', event.target.value.split('\n').map((line) => line.trim()).filter((line) => line.length > 0))} /></label>
+                <label>DuckDNS Token<input aria-label="DuckDNS Token" type="password" autoComplete="new-password" value={duckdnsToken} onChange={(event) => setDuckdnsToken(event.target.value)} placeholder={tlsSettings.has_duckdns_token ? '留空以保留現有 Token' : 'DuckDNS 帳號 token'} /></label>
+              </div>
+              <p className="secret-state">憑證狀態：{tlsSettings.state === 'issued' ? '已核發' : tlsSettings.state === 'failed' ? '簽發失敗' : '未核發'}</p>
+              {tlsSettings.state === 'issued' && <p className="secret-state">到期：{new Date(tlsSettings.certificate_expires_at).toISOString().replace('.000Z', 'Z')}</p>}
+              {tlsSettings.state !== 'issued' && <p className="secret-state">未取得受信任憑證前，系統不會輸出任何 VPN 節點。</p>}
+              <label className="toggle-control"><input aria-label="同意憑證機構條款" type="checkbox" checked={tlsSettings.terms_accepted} onChange={(event) => updateTLSSetting('terms_accepted', event.target.checked)} /><span>同意憑證機構條款</span></label>
+              <button className="primary-action" type="submit">儲存 TLS 設定</button>
             </form>}
           </section> : <section className="workspace">
             <div className="workspace-heading">

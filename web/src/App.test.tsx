@@ -212,4 +212,41 @@ describe('管理面板登入', () => {
 			body: JSON.stringify({ ...coreSettings, has_reality_private_key: undefined, allow_ipv4_outbound: true, reality_private_key: '' }),
 		})
 	})
+
+	it('擁有者可設定 TLS 網域模式與 DuckDNS token', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const tlsSettings = {
+			configured: false, mode: 'custom', domain: 'vpn.example.com', challenge: 'http_01', email: '',
+			ca_directory_urls: ['https://acme-v02.api.letsencrypt.org/directory'], terms_accepted: false,
+			has_duckdns_token: false, state: 'unissued', certificate_expires_at: '0001-01-01T00:00:00Z', last_issued_ca: '',
+		}
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings: tlsSettings }) })
+			.mockResolvedValueOnce({ ok: true })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings: { ...tlsSettings, mode: 'duckdns', state: 'issued' } }) })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: 'TLS 憑證' }))
+		expect(await screen.findByRole('heading', { name: 'TLS 與網域' })).toBeInTheDocument()
+		expect(screen.getByText('憑證狀態：未核發')).toBeInTheDocument()
+		await user.selectOptions(screen.getByRole('combobox', { name: '憑證模式' }), 'duckdns')
+		const domainInput = screen.getByRole('textbox', { name: '連線網域' })
+		await user.clear(domainInput)
+		await user.type(domainInput, 'node.duckdns.org')
+		await user.type(screen.getByLabelText('DuckDNS Token'), 'duck-token')
+		await user.click(screen.getByRole('checkbox', { name: '同意憑證機構條款' }))
+		await user.click(screen.getByRole('button', { name: '儲存 TLS 設定' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/settings/tls', {
+			method: 'PUT', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				mode: 'duckdns', domain: 'node.duckdns.org', challenge: 'dns_01',
+				email: '', ca_directory_urls: ['https://acme-v02.api.letsencrypt.org/directory'],
+				terms_accepted: true, duckdns_token: 'duck-token',
+			}),
+		})
+	})
 })
