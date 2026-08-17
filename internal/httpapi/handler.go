@@ -85,6 +85,7 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	var coreSettings CoreSettingsManager
 	var tlsSettings TLSSettingsManager
 	var dashboard DashboardProvider
+	var botSettings BotSettingsManager
 	for _, option := range protections {
 		switch value := option.(type) {
 		case *LoginProtection:
@@ -109,6 +110,8 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 			tlsSettings = value
 		case DashboardProvider:
 			dashboard = value
+		case BotSettingsManager:
+			botSettings = value
 		}
 	}
 	mux := http.NewServeMux()
@@ -157,6 +160,9 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	}
 	if sessions != nil && dashboard != nil {
 		registerDashboardRoutes(mux, sessions, dashboard)
+	}
+	if sessions != nil && botSettings != nil {
+		registerBotSettingsRoutes(mux, sessions, botSettings)
 	}
 	return mux
 }
