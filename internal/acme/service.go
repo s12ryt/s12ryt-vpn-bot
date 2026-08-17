@@ -75,7 +75,9 @@ type Service struct {
 var (
 	ErrInvalidSettings = errors.New("invalid ACME settings")
 	ErrIssuanceFailed  = errors.New("ACME issuance failed")
-	domainPattern      = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
+	// ErrNotConfigured reports that the owner has not completed TLS setup.
+	ErrNotConfigured = errors.New("TLS settings are not configured")
+	domainPattern    = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$`)
 )
 
 func NewService(issuer Issuer, installer Installer, now func() time.Time) (*Service, error) {

@@ -11,9 +11,13 @@ import (
 
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/acme"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/domain"
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/secrets"
 )
 
 const duckDNSTokenPurpose = "acme/duckdns-token"
+
+// ErrTLSNotConfigured reports that the owner has not completed TLS setup.
+var ErrTLSNotConfigured = acme.ErrNotConfigured
 
 // TLSSettingsStore persists the ACME/TLS configuration. The DuckDNS token is
 // stored as AEAD ciphertext only; issuance state transitions queue core
@@ -129,6 +133,64 @@ func (store *TLSSettingsStore) GetOverview(ctx context.Context) (domain.TLSSetti
 		result.CertificateExpiresAt = expires.Time.UTC()
 	}
 	return result, nil
+}
+
+// LoadForIssuance returns the decrypted ACME settings for the issuance
+// coordinator together with the current certificate expiry (zero when no
+// certificate has been issued yet).
+func (store *TLSSettingsStore) LoadForIssuance(ctx context.Context) (acme.Settings, time.Time, error) {
+	if store == nil || store.database == nil || store.cipher == nil {
+		return acme.Settings{}, time.Time{}, errors.New("TLS settings store dependencies are required")
+	}
+	var (
+		mode, domain, challenge, email string
+		caDirectoryURLs                []string
+		termsAccepted, configured      bool
+		nonce, ciphertext              []byte
+		expires                        sql.NullTime
+	)
+	err := store.database.QueryRow(ctx, `
+		SELECT configured, mode, domain, challenge, email, ca_directory_urls,
+		       terms_accepted, duckdns_token_nonce, duckdns_token_ciphertext,
+		       certificate_expires_at
+		FROM tls_settings
+		WHERE singleton = TRUE`).Scan(
+		&configured, &mode, &domain, &challenge, &email, &caDirectoryURLs,
+		&termsAccepted, &nonce, &ciphertext, &expires,
+	)
+	if err != nil {
+		return acme.Settings{}, time.Time{}, fmt.Errorf("read TLS settings for issuance: %w", err)
+	}
+	if !configured {
+		return acme.Settings{}, time.Time{}, ErrTLSNotConfigured
+	}
+	settings := acme.Settings{
+		Mode:            acme.Mode(mode),
+		Domain:          domain,
+		Challenge:       acme.Challenge(challenge),
+		Email:           email,
+		CADirectoryURLs: caDirectoryURLs,
+		TermsAccepted:   termsAccepted,
+	}
+	if settings.Mode == acme.ModeDuckDNS {
+		if len(nonce) == 0 || len(ciphertext) == 0 {
+			return acme.Settings{}, time.Time{}, errors.New("DuckDNS token is missing")
+		}
+		token, openErr := store.cipher.Open(duckDNSTokenPurpose, secrets.SealedValue{Nonce: nonce, Ciphertext: ciphertext})
+		if openErr != nil {
+			return acme.Settings{}, time.Time{}, fmt.Errorf("open DuckDNS token: %w", openErr)
+		}
+		settings.DNSProviderName = "duckdns"
+		settings.DNSProviderToken = token
+	}
+	if _, validateErr := acme.ValidateSettings(settings); validateErr != nil {
+		return acme.Settings{}, time.Time{}, fmt.Errorf("persisted TLS settings are invalid: %w", validateErr)
+	}
+	var expiresAt time.Time
+	if expires.Valid {
+		expiresAt = expires.Time.UTC()
+	}
+	return settings, expiresAt, nil
 }
 
 func (store *TLSSettingsStore) RecordIssuance(ctx context.Context, caDirectoryURL string, expiresAt, now time.Time) error {

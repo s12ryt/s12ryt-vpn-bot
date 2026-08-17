@@ -120,6 +120,69 @@ func TestTLSSettingsStoreRecordsFailureWithClosedReasons(t *testing.T) {
 	}
 }
 
+func TestTLSSettingsStoreLoadsForIssuanceAndDecryptsToken(t *testing.T) {
+	database := &coreSettingsDatabaseStub{row: &tlsIssuanceRowStub{values: []any{
+		true, "duckdns", "node.duckdns.org", "dns_01", "owner@example.com",
+		[]string{"https://ca.example/directory"}, true,
+		[]byte("123456789012"), []byte("encrypted duckdns token"), nil,
+	}}}
+	cipher := &coreSettingsCipherStub{opened: "duckdns-token"}
+	store := NewTLSSettingsStore(nil, database, cipher)
+
+	settings, expiresAt, err := store.LoadForIssuance(context.Background())
+	if err != nil {
+		t.Fatalf("LoadForIssuance() error = %v", err)
+	}
+	if !settings.TermsAccepted || settings.Domain != "node.duckdns.org" || settings.Challenge != "dns_01" ||
+		settings.DNSProviderName != "duckdns" || settings.DNSProviderToken != "duckdns-token" {
+		t.Fatalf("LoadForIssuance() settings = %#v", settings)
+	}
+	if !expiresAt.IsZero() {
+		t.Fatalf("expiresAt = %v, want zero when none issued", expiresAt)
+	}
+	if cipher.openPurpose != duckDNSTokenPurpose {
+		t.Fatalf("Open purpose = %q", cipher.openPurpose)
+	}
+}
+
+func TestTLSSettingsStoreLoadForIssuanceFailsClosedWithoutToken(t *testing.T) {
+	database := &coreSettingsDatabaseStub{row: &tlsIssuanceRowStub{values: []any{
+		true, "duckdns", "node.duckdns.org", "dns_01", "",
+		[]string{"https://ca.example/directory"}, true, nil, nil,
+	}}}
+	store := NewTLSSettingsStore(nil, database, &coreSettingsCipherStub{})
+	if _, _, err := store.LoadForIssuance(context.Background()); err == nil {
+		t.Fatal("expected failure when duckdns token is missing")
+	}
+}
+
+type tlsIssuanceRowStub struct{ values []any }
+
+func (row *tlsIssuanceRowStub) Scan(destinations ...any) error {
+	if len(destinations) != len(row.values) {
+		return context.Canceled
+	}
+	for index, destination := range destinations {
+		switch pointer := destination.(type) {
+		case *bool:
+			*pointer = row.values[index].(bool)
+		case *string:
+			*pointer = row.values[index].(string)
+		case *[]string:
+			*pointer = row.values[index].([]string)
+		case *[]byte:
+			value := row.values[index]
+			if value == nil {
+				continue
+			}
+			*pointer = value.([]byte)
+		case *sql.NullTime:
+			*pointer = sql.NullTime{}
+		}
+	}
+	return nil
+}
+
 type tlsOverviewRowStub struct{ values []any }
 
 func (row *tlsOverviewRowStub) Scan(destinations ...any) error {
