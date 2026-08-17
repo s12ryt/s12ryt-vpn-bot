@@ -1,0 +1,27 @@
+# Pinned dataset bytes are verified with SHA-256 at runtime; force LF so
+# Windows checkouts cannot corrupt the embedded checksum.
+internal/reality/dataset-top-domains.txt text eol=lf
+
+# Shell scripts must keep LF line endings to stay executable on Linux.
+*.sh text eol=lf
+
+# Go, web, and workflow sources are normalized text.
+*.go text
+*.mod text
+*.sum text
+*.md text
+*.json text
+*.yaml text
+*.yml text
+*.css text
+*.tsx text
+*.ts text
+*.html text
+*.sql text
+
+# Windows scripts keep CRLF.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# Binary artifacts are never touched.
+*.png binary
