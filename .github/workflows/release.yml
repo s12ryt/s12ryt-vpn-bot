@@ -28,15 +28,30 @@ jobs:
       - name: Resolve latest stable sing-box source
         id: source
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p .release
-          VERSION="$(curl --fail --silent --show-error https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20 | jq -r '[.[] | select(.prerelease == false and .draft == false)][0].tag_name')"
+          VERSION="$(curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            'https://api.github.com/repos/SagerNet/sing-box/releases?per_page=20' \
+            | jq -r '[.[] | select(.prerelease == false and .draft == false)][0].tag_name')"
           test -n "${VERSION}" && test "${VERSION}" != null
-          REMOTE_TAGS="$(git ls-remote https://github.com/SagerNet/sing-box.git "refs/tags/${VERSION}" "refs/tags/${VERSION}^{}")"
+          REMOTE_TAGS=""
+          for ATTEMPT in 1 2 3 4 5; do
+            if REMOTE_TAGS="$(git ls-remote https://github.com/SagerNet/sing-box.git "refs/tags/${VERSION}" "refs/tags/${VERSION}^{}")" && test -n "${REMOTE_TAGS}"; then
+              break
+            fi
+            REMOTE_TAGS=""
+            sleep "$((ATTEMPT * 2))"
+          done
+          test -n "${REMOTE_TAGS}"
           SOURCE_COMMIT="$(printf '%s\n' "${REMOTE_TAGS}" | awk '/\^\{\}$/ {print $1; found=1} END {if (!found) exit 1}')" || SOURCE_COMMIT="$(printf '%s\n' "${REMOTE_TAGS}" | awk 'NR==1 {print $1}')"
           test "${#SOURCE_COMMIT}" -eq 40
-          curl --fail --location --silent --show-error "https://github.com/SagerNet/sing-box/archive/refs/tags/${VERSION}.tar.gz" -o .release/source.tar.gz
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
+            "https://github.com/SagerNet/sing-box/archive/refs/tags/${VERSION}.tar.gz" \
+            -o .release/source.tar.gz
           SOURCE_SHA256="$(sha256sum .release/source.tar.gz | cut -d' ' -f1)"
           mkdir .release/sing-box
           tar -xzf .release/source.tar.gz --strip-components=1 -C .release/sing-box

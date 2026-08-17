@@ -149,3 +149,21 @@ func TestReleaseWorkflowVerifiesThousandUserConfiguration(t *testing.T) {
 		t.Fatal("cmd/scaleconfig must exist so the scale check can generate its input")
 	}
 }
+
+func TestReleaseSourceResolutionRetriesTransientGitHubFailures(t *testing.T) {
+	workflowBytes, err := os.ReadFile("../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	workflow := string(workflowBytes)
+	for _, required := range []string{
+		"GH_TOKEN: ${{ github.token }}",
+		"Authorization: Bearer ${GH_TOKEN}",
+		"--retry 5",
+		"--retry-all-errors",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Errorf("release source resolution missing transient-failure protection %q", required)
+		}
+	}
+}
