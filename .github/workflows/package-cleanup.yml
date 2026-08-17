@@ -5,7 +5,13 @@ on:
     inputs:
       tag:
         description: "Tag to delete from ghcr.io (e.g. 1.13.18-45ca32dcb966)"
-        required: true
+        required: false
+        default: ""
+      delete_package:
+        description: "Delete the entire package (required when the tag is the last tagged version)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -19,12 +25,22 @@ jobs:
   delete-tagged-version:
     runs-on: ubuntu-latest
     steps:
-      - name: Delete tagged package version
+      - name: Delete tagged package version or entire package
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
+          DELETE_PACKAGE: ${{ inputs.delete_package }}
         run: |
           set -euo pipefail
+          if [ "${DELETE_PACKAGE}" = "true" ]; then
+            echo "deleting entire package s12ryt-sing-box"
+            gh api -X DELETE /user/packages/container/s12ryt-sing-box
+            exit 0
+          fi
+          if [ -z "${TAG}" ]; then
+            echo "either tag or delete_package is required" >&2
+            exit 1
+          fi
           if ! printf '%s' "${TAG}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'; then
             echo "invalid tag format" >&2
             exit 1
@@ -41,8 +57,12 @@ jobs:
           fi
           VERSION_ID="$(printf '%s' "${VERSIONS}" | jq -r --arg tag "${TAG}" '[.[] | select((.metadata.container.tags // []) | index($tag))][0].id')"
           echo "deleting version ${VERSION_ID} (tag ${TAG})"
-          gh api -X DELETE "/user/packages/container/s12ryt-sing-box/versions/${VERSION_ID}"
-      - name: Verify tag removed
+          if ! gh api -X DELETE "/user/packages/container/s12ryt-sing-box/versions/${VERSION_ID}"; then
+            echo "version deletion was rejected (likely the last tagged version); retry with delete_package=true" >&2
+            exit 1
+          fi
+      - name: Verify removal
+        if: ${{ inputs.delete_package != true }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag }}
@@ -55,3 +75,15 @@ jobs:
             exit 1
           fi
           echo "tag ${TAG} removed"
+      - name: Verify package removal
+        if: ${{ inputs.delete_package == true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sleep 5
+          if gh api /user/packages/container/s12ryt-sing-box/versions >/dev/null 2>&1; then
+            echo "package still present after deletion" >&2
+            exit 1
+          fi
+          echo "package removed"

@@ -108,6 +108,12 @@ func TestPackageCleanupWorkflowIsConstrained(t *testing.T) {
 	if regexp.MustCompile(`inputs\.[A-Za-z_]+`).FindAllString(workflow, -1) == nil {
 		t.Fatal("workflow must accept a constrained tag input")
 	}
+	if !strings.Contains(workflow, "delete_package") {
+		t.Fatal("workflow must expose an explicit full-package deletion mode for the last-tagged-version case")
+	}
+	if !strings.Contains(workflow, `gh api -X DELETE /user/packages/container/s12ryt-sing-box`) {
+		t.Fatal("full-package mode must call the documented package deletion endpoint")
+	}
 	for _, forbidden := range []string{"inputs.package", "inputs.owner"} {
 		if strings.Contains(workflow, forbidden) {
 			t.Errorf("workflow input %q would allow arbitrary package targeting", forbidden)
