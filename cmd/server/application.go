@@ -41,6 +41,7 @@ type applicationManagementSettings struct {
 	httpapi.CoreSettingsManager
 	httpapi.TLSSettingsManager
 	httpapi.RealitySearchManager
+	httpapi.BackupSettingsManager
 }
 
 type recheckRuntimeDependencies struct {
@@ -188,6 +189,10 @@ func buildApplicationWithOptions(ctx context.Context, configuration config.Confi
 	if !ok || realitySearch == nil {
 		return applicationRuntime{}, errors.New("reality search management is required")
 	}
+	backupSettings, ok := managementSettings.(httpapi.BackupSettingsManager)
+	if !ok || backupSettings == nil {
+		return applicationRuntime{}, errors.New("backup settings management is required")
+	}
 	if subscriptions == nil {
 		return applicationRuntime{}, errors.New("subscription renderer is required")
 	}
@@ -239,7 +244,7 @@ func buildApplicationWithOptions(ctx context.Context, configuration config.Confi
 			Limiter:   loginLimiter,
 			Auditor:   loginAuditor,
 			Now:       now,
-		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules, coreSettings, tlsSettings, realitySearch, extraDashboard, extraBotSettings),
+		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules, coreSettings, tlsSettings, realitySearch, backupSettings, extraDashboard, extraBotSettings),
 		bot: telegram.NewRunner(botClient, commandHandler, nil, membershipHandlers...).WithCallbackHandler(callbacks),
 	}, nil
 }

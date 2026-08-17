@@ -189,6 +189,7 @@ func run() error {
 		return err
 	}
 	managementSettingsStore := postgres.NewManagementSettingsStore(transactionRunner, pool, recheckScheduler)
+	backupSettingsStore := postgres.NewBackupSettingsStore(transactionRunner, pool)
 	qualificationRuleStore := postgres.NewQualificationRuleStore(transactionRunner)
 	qualificationRuleManager := qualification.NewRuleManager(swapAwareBotClient.Identity().ID, swapAwareBotClient, qualificationRuleStore, time.Now, recheckScheduler)
 	realityDataset, err := reality.NewEmbeddedDataset()
@@ -222,7 +223,7 @@ func run() error {
 		adminCommands,
 		administratorStore,
 		auditStore,
-		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager, CoreSettingsManager: coreSettingsManagementStore, TLSSettingsManager: tlsSettingsStore, RealitySearchManager: realitySearchService},
+		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager, CoreSettingsManager: coreSettingsManagementStore, TLSSettingsManager: tlsSettingsStore, RealitySearchManager: realitySearchService, BackupSettingsManager: backupSettingsStore},
 		subscriptionService,
 		userManagementStore,
 		provisioningStore,

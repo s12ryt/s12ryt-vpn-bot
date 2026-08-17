@@ -211,6 +211,29 @@ func TestBuildApplicationRejectsMissingRealitySearch(t *testing.T) {
 	}
 }
 
+func TestBuildApplicationRejectsMissingBackupSettingsManagement(t *testing.T) {
+	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
+	store := &applicationAuthStoreStub{administrator: auth.Administrator{TelegramID: 12345, Role: auth.RoleOwner, Root: true, Active: true}}
+	bot := &applicationBotClientStub{}
+	if _, err := buildApplication(
+		context.Background(), configuration, readinessStub{}, store, bot,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, &applicationAdminCommandsStub{}, &applicationAdministratorManagementStub{}, applicationAuditStub{}, applicationManagementSettingsWithoutBackupStub{},
+		applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
+	); err == nil || !strings.Contains(err.Error(), "backup settings") {
+		t.Fatalf("buildApplication() error = %v, want backup settings requirement", err)
+	}
+}
+
+type applicationManagementSettingsWithoutBackupStub struct {
+	applicationManagementSettingsWithoutRealitySearchStub
+}
+
+func (applicationManagementSettingsWithoutBackupStub) Start(context.Context) error { return nil }
+
+func (applicationManagementSettingsWithoutBackupStub) Snapshot() reality.SearchSnapshot {
+	return reality.SearchSnapshot{Status: reality.SearchStatusIdle}
+}
+
 type applicationManagementSettingsWithoutRealitySearchStub struct {
 	applicationManagementSettingsWithoutTLSStub
 }
@@ -289,6 +312,14 @@ func (applicationManagementSettingsStub) Start(context.Context) error {
 
 func (applicationManagementSettingsStub) Snapshot() reality.SearchSnapshot {
 	return reality.SearchSnapshot{Status: reality.SearchStatusIdle}
+}
+
+func (applicationManagementSettingsStub) GetBackupSettings(context.Context) (domain.BackupSettings, error) {
+	return domain.BackupSettings{RetentionDays: 7}, nil
+}
+
+func (applicationManagementSettingsStub) UpdateBackupSettings(context.Context, int64, domain.BackupSettings, time.Time) error {
+	return nil
 }
 
 type applicationManagementSettingsWithoutCoreStub struct {
