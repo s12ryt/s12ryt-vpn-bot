@@ -74,7 +74,6 @@ detect_public_address() {
 
 prompt_public_address() {
   local family="$1" detected="$2" output_name="$3" input validator
-  local -n output="$output_name"
   case "$family" in
     4) validator='valid_ipv4' ;;
     6) validator='valid_ipv6' ;;
@@ -86,7 +85,7 @@ prompt_public_address() {
   if [[ -n "$input" ]]; then
     "$validator" "$input" || fail "公開 IPv${family} 格式無效"
   fi
-  output="$input"
+  printf -v "$output_name" '%s' "$input"
 }
 
 confirm_public_addresses() {
