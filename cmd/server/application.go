@@ -39,6 +39,7 @@ type applicationManagementSettings struct {
 	httpapi.ManagementSettingsManager
 	httpapi.QualificationRuleManager
 	httpapi.CoreSettingsManager
+	httpapi.TLSSettingsManager
 }
 
 type recheckRuntimeDependencies struct {
@@ -167,6 +168,10 @@ func buildApplication(
 	if !ok || coreSettings == nil {
 		return applicationRuntime{}, errors.New("core settings management is required")
 	}
+	tlsSettings, ok := managementSettings.(httpapi.TLSSettingsManager)
+	if !ok || tlsSettings == nil {
+		return applicationRuntime{}, errors.New("TLS settings management is required")
+	}
 	if subscriptions == nil {
 		return applicationRuntime{}, errors.New("subscription renderer is required")
 	}
@@ -216,7 +221,7 @@ func buildApplication(
 		handler: httpapi.NewApplicationHandler(readiness, loginFlow, sessions, httpapi.LoginProtection{
 			SourceIPs: httpapi.NewSourceIPResolver(configuration.TrustedProxyCIDRs),
 			Limiter:   loginLimiter,
-		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules, coreSettings),
+		}, subscriptions, users, provisioning, administratorManager, audits, managementSettings, qualificationRules, coreSettings, tlsSettings),
 		bot: telegram.NewRunner(botClient, commandHandler, nil, membershipHandlers...).WithCallbackHandler(callbacks),
 	}, nil
 }

@@ -166,6 +166,31 @@ func TestBuildApplicationRejectsMissingCoreSettingsManagement(t *testing.T) {
 	}
 }
 
+func TestBuildApplicationRejectsMissingTLSSettingsManagement(t *testing.T) {
+	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
+	store := &applicationAuthStoreStub{administrator: auth.Administrator{TelegramID: 12345, Role: auth.RoleOwner, Root: true, Active: true}}
+	bot := &applicationBotClientStub{}
+	if _, err := buildApplication(
+		context.Background(), configuration, readinessStub{}, store, bot,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, &applicationAdminCommandsStub{}, &applicationAdministratorManagementStub{}, applicationAuditStub{}, applicationManagementSettingsWithoutTLSStub{},
+		applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
+	); err == nil {
+		t.Fatal("buildApplication() accepted missing TLS settings management")
+	}
+}
+
+type applicationManagementSettingsWithoutTLSStub struct {
+	applicationManagementSettingsWithoutCoreStub
+}
+
+func (applicationManagementSettingsWithoutTLSStub) GetCore(context.Context) (domain.CoreSettingsOverview, error) {
+	return domain.CoreSettingsOverview{}, nil
+}
+
+func (applicationManagementSettingsWithoutTLSStub) UpdateCore(context.Context, int64, domain.CoreSettingsUpdate, time.Time) error {
+	return nil
+}
+
 type applicationAuditStub struct{}
 
 func (applicationAuditStub) List(context.Context, int64, int) ([]domain.AuditEvent, error) {
@@ -197,6 +222,14 @@ func (applicationManagementSettingsStub) GetCore(context.Context) (domain.CoreSe
 }
 
 func (applicationManagementSettingsStub) UpdateCore(context.Context, int64, domain.CoreSettingsUpdate, time.Time) error {
+	return nil
+}
+
+func (applicationManagementSettingsStub) GetOverview(context.Context) (domain.TLSSettingsOverview, error) {
+	return domain.TLSSettingsOverview{}, nil
+}
+
+func (applicationManagementSettingsStub) Save(context.Context, int64, domain.TLSSettingsUpdate, time.Time) error {
 	return nil
 }
 

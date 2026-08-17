@@ -107,10 +107,12 @@ func run() error {
 	}
 	coreSettingsStore := postgres.NewCoreSettingsStore(pool, coreSettingsCipher)
 	coreSettingsManagementStore := postgres.NewCoreSettingsManagementStore(transactionRunner, pool, coreSettingsCipher)
+	tlsSettingsStore := postgres.NewTLSSettingsStore(transactionRunner, pool, coreSettingsCipher)
 	subscriptionService, err := subscription.NewService(credentialStore, coreSettingsStore, subscription.Renderer{})
 	if err != nil {
 		return err
 	}
+	subscriptionService = subscriptionService.WithTLSReadiness(tlsSettingsStore)
 	vpnAccessService := vpn.NewAccessService(
 		qualificationChecker,
 		accessStore,
@@ -168,7 +170,7 @@ func run() error {
 		adminCommands,
 		administratorStore,
 		auditStore,
-		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager, CoreSettingsManager: coreSettingsManagementStore},
+		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager, CoreSettingsManager: coreSettingsManagementStore, TLSSettingsManager: tlsSettingsStore},
 		subscriptionService,
 		userManagementStore,
 		provisioningStore,
@@ -230,7 +232,6 @@ func run() error {
 		return err
 	}
 
-	tlsSettingsStore := postgres.NewTLSSettingsStore(transactionRunner, pool, coreSettingsCipher)
 	legoIssuer, err := acme.NewLegoIssuer()
 	if err != nil {
 		return err
