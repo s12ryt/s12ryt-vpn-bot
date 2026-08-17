@@ -1,5 +1,13 @@
 # 操作與驗證紀錄
 
+## 2026-08-17：1,000 使用者真實核心檢查與發佈閘門實證
+
+- release run `32039261580` 首次走到真實 `sing-box check` 時，mode 0600 的測試私鑰由 runner 擁有，而 distroless 預設 nonroot UID 不同，故讀取 `/run/tls/privkey.pem` 被拒。先以契約測試建立 RED，再維持私鑰 0600，讓隔離 check container 使用 `--user "$(id -u):$(id -g)"`；沒有放寬檔案權限，network-none／read-only／no-new-privileges／cap-drop ALL 仍保留。
+- commit `530aaf0` 推送後，一般 CI run `32040218650` 初次因 GitHub codeload 對 pinned `setup-go` 回 429／502／503 而在專案步驟前失敗；只重跑失敗 jobs 後全綠：Go race／vet／ShellCheck／Linux build、PostgreSQL 17 migration 012 與 integration、Web、Compose 及 app/controller/backup images。
+- Release images run `32040495443` 的前兩個 attempts 同樣停在 GitHub action codeload；平台恢復後 attempt 3 完整執行。來源解析固定為 sing-box v1.13.19；purego/glibc/libcronet runtime pre-build 成功，接著 1,000 使用者×四協定×雙棧的 8 inbound 設定通過真實 `sing-box check -c`。
+- Trivy 隨即對本地、尚未發布的 image 報告 Debian 12.15 OS packages 0 漏洞、sing-box Go binary 17 項（HIGH 16、CRITICAL 1），包含 x/crypto v0.48.0、x/net v0.50.0、x/text v0.34.0 與 grpc v1.79.1 的已知 fixed-version 漏洞。掃描以 exit 1 正確阻擋，所有 sing-box/app/controller push、digest 與 release metadata 步驟均 skipped。
+- 發佈後獨立查核：`gh api /user/packages/container/s12ryt-sing-box/versions` 回 HTTP 404 Package not found，證明本輪沒有重建或誤發 package。正式 release 唯一剩餘條件仍是上游 stable 修復 dependency graph；維持 weekly 自動重試、嚴格 Trivy gate、不忽略漏洞、不私改上游依賴。
+
 ## 2026-08-17：Web 備份保留政策與 release transient failure
 
 - 懷疑式重讀 `agent/question.md` 發現第 15 節「預設保留 7 日且可由 Web 調整」尚未落地：備份程序只在啟動時讀 `BACKUP_RETENTION_DAYS`，Web 也沒有備份頁。先以 domain／PostgreSQL／HTTP／server／Web／部署契約建立 RED，確認缺少 singleton 設定、owner API、啟動必填依賴與前端入口。
