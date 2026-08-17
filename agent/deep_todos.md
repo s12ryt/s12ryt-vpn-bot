@@ -42,4 +42,6 @@
 - [x] 建立並推送公開 `s12ryt/s12ryt-vpn-bot`。
 - [x] 建立最新穩定 sing-box、應用與受限控制器的多架構 GHCR release workflow，含 SBOM、provenance 與 Trivy gate。
 - [x] 完成每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 封存、0600 原子落盤、可調保留期與完整性驗證後還原命令。
+- [x] 補齊 owner-only Web 備份保留期管理：migration 012 預設 7 日、每次備份動態重讀 PostgreSQL、設定不可用時仍備份但跳過清理、actor 稽核；修正 backup container 以 host network 連線 loopback PostgreSQL。
+- [x] 強化 release 來源解析：GitHub API 使用 workflow token 並對 API／tarball／tag 查詢做 transient failure 重試，避免 HTTP 504 在建置前中止。
 - [ ] 完成 GitHub Actions、正式 GHCR release 與部署後真實驗收。

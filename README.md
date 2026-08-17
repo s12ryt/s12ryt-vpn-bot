@@ -16,7 +16,7 @@
 - 繁體中文響應式使用者、角色、稽核與資格／配額政策管理頁。
 - 非 root 多階段映像與 Compose 安全拓撲契約；只有受限 sidecar 可存取 Docker socket。
 - GitHub release workflow 解析最新穩定 sing-box 原始碼，沿用官方 Linux build tags／linker flags與必要的 `with_purego`，另啟用 `with_v2ray_api`，產生 amd64/arm64 GHCR images、SBOM、provenance與漏洞掃描。
-- 每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 加密、可調保留期與完整性驗證後還原。
+- 每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 加密、Web 動態可調保留期與完整性驗證後還原。
 - 主機安裝腳本（環境／架構／埠位檢查、0600 `.env` 產生）與部署後自動檢查腳本（Telegram、TLS、訂閱、核心邊界），見 [`docs/installation.md`](docs/installation.md)。
 - ACME 簽發服務與 lego adapter：條款同意、多 CA 備援、sslip.io HTTP-01／DuckDNS DNS-01、憑證與私鑰／網域／有效期驗證，失敗不安裝。
 - Bot Token 安全熱切換：AES-GCM 加密保存、`getMe` 驗證同一 Bot 身分後先持久化再原子替換 live client，owner Web「Bot 與 Token」頁操作並留稽核。
@@ -84,7 +84,7 @@ Compose 目前包含：
 - Go 應用與 sing-box，使用 host network 以明確綁定主機 IPv4／IPv6。
 - `core-controller` sidecar，唯一可掛載 Docker socket，且只控制固定的 sing-box container。
 - 權限初始化工作，讓非 root containers 使用持久 volumes。
-- 每日執行的非 root 加密 PostgreSQL 備份 service；操作方式見 [`docs/backup-restore.md`](docs/backup-restore.md)。
+- 每日執行的非 root 加密 PostgreSQL 備份 service；保留期由擁有者在 Web 動態管理，操作方式見 [`docs/backup-restore.md`](docs/backup-restore.md)。
 
 本機尚未具備 Docker；Compose config、image build、PostgreSQL migration、600-user 流量交易與 race detector 證據由 GitHub Actions 提供。
 

@@ -1,5 +1,13 @@
 # 操作與驗證紀錄
 
+## 2026-08-17：Web 備份保留政策與 release transient failure
+
+- 懷疑式重讀 `agent/question.md` 發現第 15 節「預設保留 7 日且可由 Web 調整」尚未落地：備份程序只在啟動時讀 `BACKUP_RETENTION_DAYS`，Web 也沒有備份頁。先以 domain／PostgreSQL／HTTP／server／Web／部署契約建立 RED，確認缺少 singleton 設定、owner API、啟動必填依賴與前端入口。
+- migration 012 新增 `backup_settings` singleton（1..3650 日、預設 7）；`BackupSettingsStore` 提供防禦性讀取與交易式 owner 更新，成功寫 `backup.settings.update` actor 稽核。owner API 為 `GET/PUT /api/settings/backup`，PUT 要求 double-submit CSRF；Web「備份與保留」頁只允許 owner 操作。
+- `cmd/backup` 每次 24 小時循環都重讀 PostgreSQL 最新保留期；設定不可用或資料非法時仍建立當次加密 archive，但 retention=0 跳過 prune，避免依過時／推測政策刪除檔案。Compose 與 `.env.example` 移除舊 `BACKUP_RETENTION_DAYS` 權威入口。
+- Compose 複查發現 backup service 原在 bridge network，但共用的 `DATABASE_URL` 指向 loopback-only PostgreSQL publication，container 內 `127.0.0.1` 會指向自身。新增 RED 契約後讓 backup 使用 host network，與 app 的資料庫拓撲一致。
+- release run `32036312881` 未走到 purego runtime／1,000-user check；在 `Resolve latest stable sing-box source` 遭 GitHub Releases API HTTP 504 提前失敗。release workflow 新增 workflow token Authorization、curl API／tarball 5 次 all-errors retry，以及 `git ls-remote` 5 次退避；漏洞掃描與 scan-before-push 閘門未變。
+
 ## 2026-08-17：規模驗收契約補齊
 
 - 懷疑式重讀 `agent/question.md` 發現既定第 17 節的規模驗收從未真正建立：CI 應生成 1,000 使用者×四協定×雙棧設定並執行固定 release sing-box `check -c`；另需 600 使用者並行流量匯入、交易一致性、race 與 bounded time 證據。
