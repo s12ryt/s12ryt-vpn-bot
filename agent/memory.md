@@ -7,6 +7,7 @@
 - migration 013 建立 `reality_health` singleton，保存 target、healthy、last checked/transition/notification 與 pending transition。`RealityHealthStore` 交易鎖定後回傳故障／恢復；通知與稽核成功才確認 pending，避免狀態已提交後程序中斷造成通知永久遺失。新目標健康建立無通知基準，新目標首次失敗仍通知。
 - `TelegramHealthNotifier` 對所有 active 管理者逐一傳送固定訊息；故障訊息明確要求在管理面板確認後再切換並說明不會自動切換。單一私訊失敗不重送給已成功者，只以 attempted/failed 稽核；收件人查詢或稽核失敗則保留 pending 等下輪重試。
 - 正式 server 以 `RealityHealthStore`、既有 TLS prober、AuthStore、swap-aware Bot client 與 AuditStore 組裝必要 goroutine。全量 `go test ./...`、`go vet ./...`、Windows server build、integration tagged compile 與前端 Vitest 14/14／lint／build通過；真實 migration 013/race 待 GitHub Linux CI。
+- 8 個原子 commits 推送至 main 後，GitHub CI run `32063957698` 全綠：Go race／vet／ShellCheck／Linux build、PostgreSQL 17 migration 013 與冪等／600-user integration、Web、Compose、app/controller/backup images 均通過。
 
 ## 2026-08-18：外部阻塞重新驗證
 
