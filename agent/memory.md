@@ -1,5 +1,12 @@
 # 操作與驗證紀錄
 
+## 2026-08-18：安裝器 Bot／ACME／Web HTTPS 預檢
+
+- 懷疑式對照需求發現兩個缺口：公開位址提示顯示候選為 default，但 Enter 實際停用該 family；重跑既有 `.env` 又收集不會寫回的值。先以部署契約建立 RED，再讓 Enter 採用候選、`-` 明確停用，既有 `.env` 改為驗證保存值並在 Compose 前再次確認。
+- 使用者確認安裝器只驗 Bot 身分，資格群組管理員權限留給 Web 啟用規則時逐條強制驗證；ACME 預檢只保存 mode／domain／challenge／條款等非秘密參考值，不收集 DuckDNS token、不冒充簽發；Web HTTPS 必選第二 IP、自訂 port 或 Cloudflare Tunnel 並驗基本一致性。需求已同步 `agent/question.md`。
+- GREEN 新增 Telegram `getMe` 驗證、ACME 網域／DNS／候選 CA 條款與 challenge 前置檢查，以及 Web HTTPS 拓撲驗證。Bot token 只寫入 0700 安裝暫存目錄中的 0600 curl config，exit／HUP／INT／TERM 均清理；bootstrap Bot token、owner ID、公開 URL 與不可變 image 先採白名單驗證再做網路呼叫。
+- 品質審查確認正式 TLS schema／Web 只支援 DuckDNS provider token；custom DNS-01 無 provider 名稱／憑證持久化路徑。新增 RED 後將第一版自有網域固定為 HTTP-01，既有 `.env` 宣告 custom DNS-01 會 fail closed，文件明確說明能力邊界。
+
 ## 2026-08-18：安裝精靈公開位址確認閘門
 
 - 懷疑式對照 `agent/question.md` 發現既有 `install.sh` 每個 address family 只查一個外部服務，僅列印結果且未要求部署者確認；先新增 deploy contract RED，精確證明缺少多來源、人工修改／確認及 Compose 前順序閘門。
