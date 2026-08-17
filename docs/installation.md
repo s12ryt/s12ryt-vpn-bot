@@ -20,7 +20,9 @@ chmod +x scripts/install.sh scripts/post-deploy-check.sh
 ./scripts/install.sh
 ```
 
-首次執行會互動收集 Bot token、根擁有者 Telegram ID、公開 HTTPS URL 與 sing-box image，並以 `0600` 建立 `.env`。腳本不會把 Bot token 或 `APP_MASTER_KEY` 印到終端。既有 `.env` 不會被覆蓋。
+安裝器會先分別向 `api.ipify.org`、`ifconfig.co` 與 `icanhazip.com` 查詢公開 IPv4／IPv6。只有至少兩個外部來源回報相同位址時，該值才會列為可信候選；部署者必須逐一輸入確認值，也可留空停用單一 address family。IPv4 與 IPv6 不可同時停用，最終未明確確認時腳本會在 Compose 驗證與啟動前中止。
+
+首次執行還會互動收集 Bot token、根擁有者 Telegram ID、公開 HTTPS URL 與 sing-box image，並以 `0600` 建立 `.env`。確認後的 `PUBLIC_IPV4`／`PUBLIC_IPV6` 會保留在新建的 `.env`，供擁有者完成 Web「VPN 與網路」設定時核對；它們不會繞過 Web 對完整核心、TLS 與 REALITY 設定的驗證。腳本不會把 Bot token 或 `APP_MASTER_KEY` 印到終端。既有 `.env` 不會被覆蓋。
 
 安裝器會在啟動前檢查作業系統、CPU 架構、Docker 權限、Compose、必要環境值、DNS、公開 IPv4／IPv6，以及四協定與 Web ports；接著先執行 `docker compose config --quiet`，再 pull/build/up。
 
