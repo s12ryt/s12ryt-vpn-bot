@@ -39,6 +39,8 @@ func TestMigrateAppliesUnseenMigrationAndRecordsVersion(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS traffic_health",
 		"CREATE TABLE IF NOT EXISTS tls_settings",
 		"duckdns_token_ciphertext",
+		"CREATE TABLE IF NOT EXISTS bot_settings",
+		"token_ciphertext",
 		"INSERT INTO schema_migrations",
 		"pg_advisory_unlock",
 	} {
