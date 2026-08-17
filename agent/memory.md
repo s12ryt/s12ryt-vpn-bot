@@ -5,6 +5,7 @@
 - 懷疑式複查發現 `scripts/post-deploy-check.sh` 完成容器、Telegram、TLS、訂閱與設定檢查後，只列印「需人工續驗」卻仍以 0 結束；CI 或操作員可能把局部檢查誤判為完整驗收通過。
 - 先新增 deploy contract RED，要求 `VERIFY_EXTERNAL_EVIDENCE_FILE` 及四協定雙棧、IPv6-only／IPv4 出站、流量入帳、配額封鎖、週期恢復、重啟與 600 連線八類證據，並禁止舊成功提示。GREEN 改為驗證 schema v1 JSON；每項必須 `passed: true` 且有非空 evidence 引用，缺檔、symlink、格式錯誤或缺項一律非零退出。
 - 品質審查抓到初版 jq `all` 內 scope 指向檢查名稱而非根物件；改先捕捉 `$root`。以真實合法與缺項 JSON 執行 jq，分別驗證成功與拒絕。此閘門不代替外部測試，實際 Linux／Docker／Telegram／ACME 與 E2E evidence 仍屬外部阻塞。
+- 再次懷疑式檢查發現非空 evidence 字串仍可虛構。新增 RED 後，GREEN 要求每個引用是 manifest 目錄內的安全相對路徑；以 `realpath -e` 驗證實體檔與 canonical containment，拒絕絕對路徑、`.`／`..`、重複斜線、非一般檔、最終 symlink 與父層 symlink 逃逸。
 
 ## 2026-08-18：REALITY 目前目標健康監控
 
