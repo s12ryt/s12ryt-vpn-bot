@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/acme"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/config"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/corecontrol"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/coreworker"
@@ -229,6 +230,23 @@ func run() error {
 		return err
 	}
 
+	tlsSettingsStore := postgres.NewTLSSettingsStore(transactionRunner, pool, coreSettingsCipher)
+	legoIssuer, err := acme.NewLegoIssuer()
+	if err != nil {
+		return err
+	}
+	tlsCoordinator, err := buildTLSRuntime(tlsRuntimeDependencies{
+		core:     coreSettingsStore,
+		settings: tlsSettingsStore,
+		issuer:   legoIssuer,
+		issuance: tlsSettingsStore,
+		failures: tlsSettingsStore,
+		now:      time.Now,
+	})
+	if err != nil {
+		return err
+	}
+
 	webHandler, err := httpapi.NewSPAHandler(application.handler, os.DirFS(configuration.WebAssetDir))
 	if err != nil {
 		return err
@@ -248,6 +266,7 @@ func run() error {
 	coreWorkerError := make(chan error, 1)
 	trafficError := make(chan error, 1)
 	quotaSweepError := make(chan error, 1)
+	tlsError := make(chan error, 1)
 	go func() {
 		slog.Info("HTTP server listening", "address", server.Addr)
 		serverError <- server.ListenAndServe()
@@ -266,6 +285,9 @@ func run() error {
 	}()
 	go func() {
 		quotaSweepError <- quotaScheduler.Run(signalContext)
+	}()
+	go func() {
+		tlsError <- tlsCoordinator.Run(signalContext, nil)
 	}()
 
 	select {
@@ -296,6 +318,11 @@ func run() error {
 	case err := <-quotaSweepError:
 		if err == nil {
 			return errors.New("quota period scheduler stopped unexpectedly")
+		}
+		return err
+	case err := <-tlsError:
+		if err == nil {
+			return errors.New("TLS renewal coordinator stopped unexpectedly")
 		}
 		return err
 	case err := <-serverError:
