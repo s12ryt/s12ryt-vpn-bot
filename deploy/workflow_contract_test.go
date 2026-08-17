@@ -23,6 +23,7 @@ func TestCIWorkflowCoversRequiredVerification(t *testing.T) {
 		"npm run lint",
 		"npm run build",
 		"docker compose config --quiet",
+		"shellcheck scripts/install.sh scripts/post-deploy-check.sh",
 		"docker buildx build",
 		"-f Dockerfile.backup -t s12ryt-vpn-backup:ci",
 		"services:\n      postgres:",

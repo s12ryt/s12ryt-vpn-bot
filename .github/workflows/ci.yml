@@ -28,6 +28,8 @@ jobs:
         run: go test -race ./...
       - name: Vet
         run: go vet ./...
+      - name: Shellcheck deployment scripts
+        run: shellcheck scripts/install.sh scripts/post-deploy-check.sh
       - name: Build Linux binaries
         run: |
           CGO_ENABLED=0 go build -trimpath -o /tmp/server ./cmd/server
