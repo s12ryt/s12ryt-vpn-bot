@@ -12,6 +12,7 @@ func TestInstallerChecksHostAndValidatesComposeBeforeStarting(t *testing.T) {
 		"set -Eeuo pipefail", "uname -s", "x86_64", "aarch64", "docker compose version",
 		"APP_MASTER_KEY", "BOT_TOKEN", "OWNER_TG_ID", "WEB_PUBLIC_URL", "DATABASE_URL",
 		"SINGBOX_IMAGE", "DOCKER_GID", "docker compose config --quiet", "docker compose up -d",
+		"if ! docker compose pull", "read:packages", "套件可見度",
 		"TCP 443", "UDP 443", "UDP 8443", "TCP 8443", "127.0.0.1:35699",
 	} {
 		if !strings.Contains(contents, required) {

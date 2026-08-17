@@ -90,7 +90,9 @@ check_port_free t 8443 'TCP 8443（AnyTLS）'
 check_port_free t 35699 '127.0.0.1:35699（Web 管理服務）'
 
 docker compose config --quiet
-docker compose pull postgres sing-box
+if ! docker compose pull postgres sing-box; then
+  fail "映像拉取失敗；若 sing-box 套件為 private，請先在 GitHub 套件設定改為 public，或以具 read:packages 權限的 token 執行 docker login ghcr.io（見 README「套件可見度」一節）"
+fi
 docker compose build app backup core-controller
 docker compose up -d
 printf '容器已啟動。下一步：設定外部 HTTPS 反向代理，完成 Web 核心／TLS 設定，再執行 scripts/post-deploy-check.sh。\n'
