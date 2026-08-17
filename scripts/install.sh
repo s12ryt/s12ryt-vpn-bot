@@ -17,6 +17,97 @@ for command_name in docker openssl curl getent ss; do require_cmd "$command_name
 docker compose version >/dev/null 2>&1 || fail "需要 Docker Compose v2"
 docker info >/dev/null 2>&1 || fail "目前帳號無法存取 Docker Engine"
 
+valid_ipv4() {
+  local candidate="$1"
+  awk -v address="$candidate" 'BEGIN {
+    count = split(address, octets, ".")
+    if (count != 4) exit 1
+    for (index = 1; index <= 4; index++) {
+      if (octets[index] !~ /^[0-9]+$/ || octets[index] < 0 || octets[index] > 255) exit 1
+      if (length(octets[index]) > 1 && substr(octets[index], 1, 1) == "0") exit 1
+    }
+  }'
+}
+
+valid_ipv6() {
+  local candidate="$1"
+  [[ "$candidate" == *:* && "$candidate" != *[[:space:]]* ]] || return 1
+  getent ahostsv6 "$candidate" >/dev/null 2>&1
+}
+
+detect_public_address() {
+  local family="$1" curl_family validator source response candidate
+  local -a sources=(
+    'https://api.ipify.org'
+    'https://ifconfig.co/ip'
+    'https://icanhazip.com'
+  )
+  local -A counts=()
+
+  case "$family" in
+    4) curl_family='-4'; validator='valid_ipv4' ;;
+    6) curl_family='-6'; validator='valid_ipv6' ;;
+    *) return 1 ;;
+  esac
+
+  for source in "${sources[@]}"; do
+    response="$(curl "$curl_family" -fsS --max-time 5 --user-agent 's12ryt-vpn-installer/1' "$source" 2>/dev/null || true)"
+    candidate="${response//$'\r'/}"
+    candidate="${candidate//$'\n'/}"
+    if [[ -n "$candidate" && "$candidate" != *[[:space:]]* ]] && "$validator" "$candidate"; then
+      counts["$candidate"]="$(( ${counts["$candidate"]:-0} + 1 ))"
+      printf '公開 IPv%s 來源 %s 回報：%s\n' "$family" "$source" "$candidate" >&2
+    else
+      printf '公開 IPv%s 來源 %s 無有效結果\n' "$family" "$source" >&2
+    fi
+  done
+
+  for candidate in "${!counts[@]}"; do
+    if (( counts["$candidate"] >= 2 )); then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  printf '公開 IPv%s 未取得至少兩個外部來源的一致結果\n' "$family" >&2
+  return 1
+}
+
+prompt_public_address() {
+  local family="$1" detected="$2" output_name="$3" input validator
+  local -n output="$output_name"
+  case "$family" in
+    4) validator='valid_ipv4' ;;
+    6) validator='valid_ipv6' ;;
+    *) fail "未知的公開位址 family" ;;
+  esac
+
+  printf '可信公開 IPv%s 候選：%s\n' "$family" "${detected:-無；請手動輸入或停用}" >&2
+  read -r -p "公開 IPv${family}（留空停用） [${detected:-無}]：" input
+  if [[ -n "$input" ]]; then
+    "$validator" "$input" || fail "公開 IPv${family} 格式無效"
+  fi
+  output="$input"
+}
+
+confirm_public_addresses() {
+  local detected_ipv4 detected_ipv6 confirmation
+  detected_ipv4="$(detect_public_address 4 || true)"
+  detected_ipv6="$(detect_public_address 6 || true)"
+  prompt_public_address 4 "$detected_ipv4" PUBLIC_IPV4
+  prompt_public_address 6 "$detected_ipv6" PUBLIC_IPV6
+  [[ -n "$PUBLIC_IPV4" || -n "$PUBLIC_IPV6" ]] || fail "公開 IPv4／IPv6 不可同時停用"
+  printf '確認值：IPv4=%s，IPv6=%s\n' "${PUBLIC_IPV4:-停用}" "${PUBLIC_IPV6:-停用}"
+  read -r -p '確認公開位址並繼續產生設定與啟動？[y/N] ' confirmation
+  case "$confirmation" in
+    y|Y|yes|YES) ;;
+    *) fail "部署者未確認公開位址" ;;
+  esac
+}
+
+PUBLIC_IPV4=''
+PUBLIC_IPV6=''
+confirm_public_addresses
+
 if [[ ! -f .env ]]; then
   printf '首次設定，不會在終端輸出 Bot token 或根金鑰。\n'
   read -r -p 'Telegram Bot Token: ' BOT_TOKEN
@@ -47,11 +138,12 @@ SINGBOX_IMAGE=${SINGBOX_IMAGE}
 APP_IMAGE=s12ryt-vpn-bot:local
 CONTROLLER_IMAGE=s12ryt-vpn-core-controller:local
 BACKUP_IMAGE=s12ryt-vpn-backup:local
-BACKUP_RETENTION_DAYS=7
 DOCKER_GID=${DOCKER_GID}
 WEB_IP=0.0.0.0
 PORT=35699
 TRUSTED_PROXY_CIDRS=
+PUBLIC_IPV4=${PUBLIC_IPV4}
+PUBLIC_IPV6=${PUBLIC_IPV6}
 EOF
   chmod 0600 .env
   unset APP_MASTER_KEY BOT_TOKEN POSTGRES_PASSWORD
@@ -69,10 +161,6 @@ for variable_name in APP_MASTER_KEY BOT_TOKEN OWNER_TG_ID WEB_PUBLIC_URL DATABAS
   [[ -n "${!variable_name:-}" ]] || fail "缺少必要環境值：${variable_name}"
 done
 
-detected_ipv4="$(curl -4fsS --max-time 5 https://api.ipify.org || true)"
-detected_ipv6="$(curl -6fsS --max-time 5 https://api64.ipify.org || true)"
-printf '偵測公開 IPv4：%s\n' "${detected_ipv4:-無}"
-printf '偵測公開 IPv6：%s\n' "${detected_ipv6:-無}"
 web_host="${WEB_PUBLIC_URL#https://}"; web_host="${web_host%%/*}"; web_host="${web_host%%:*}"
 getent ahosts "$web_host" >/dev/null || fail "WEB_PUBLIC_URL DNS 無法解析"
 

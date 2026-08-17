@@ -24,6 +24,38 @@ func TestInstallerChecksHostAndValidatesComposeBeforeStarting(t *testing.T) {
 			t.Errorf("installer must not print secrets: %q", forbidden)
 		}
 	}
+	if strings.Contains(contents, "BACKUP_RETENTION_DAYS") {
+		t.Fatal("installer must not restore the obsolete environment-controlled backup retention policy")
+	}
+}
+
+func TestInstallerCrossChecksAndConfirmsPublicAddressesBeforeStarting(t *testing.T) {
+	contents := string(readRepositoryFile(t, filepath.Join("scripts", "install.sh")))
+	for _, required := range []string{
+		"https://api.ipify.org",
+		"https://ifconfig.co/ip",
+		"https://icanhazip.com",
+		"detect_public_address",
+		"confirm_public_addresses",
+		"PUBLIC_IPV4",
+		"PUBLIC_IPV6",
+		"至少兩個外部來源",
+		"確認公開位址",
+		"公開 IPv${family}（留空停用）",
+		"prompt_public_address 4",
+		"prompt_public_address 6",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Errorf("installer missing public address confirmation contract %q", required)
+		}
+	}
+
+	confirmation := strings.LastIndex(contents, "confirm_public_addresses")
+	composeValidation := strings.Index(contents, "docker compose config --quiet")
+	composeStart := strings.Index(contents, "docker compose up -d")
+	if confirmation < 0 || composeValidation < 0 || composeStart < 0 || confirmation > composeValidation || confirmation > composeStart {
+		t.Fatal("public addresses must be confirmed before Compose validation and startup")
+	}
 }
 
 func TestPostDeployCheckCoversRealIntegrationBoundaries(t *testing.T) {
