@@ -1,5 +1,13 @@
 # 操作與驗證紀錄
 
+## 2026-08-17：TLS 未核發閘門與設定頁
+
+- 契約「成功前不得輸出任何 VPN 節點」落地：`CredentialStore.ListActive` 再 CROSS JOIN `tls_settings`，要求 `state='issued' AND certificate_expires_at > now()`；`subscription.Service.WithTLSReadiness` 在 Render 前檢查，未核發回 `ErrTLSNotReady`（HTTP 404），readiness 錯誤原樣傳播。`TLSSettingsStore.Issued/TLSIssued` 輕量查詢不含密文欄位。
+- owner TLS API：`GET/PUT /api/settings/tls`，權限 `PermissionManageVPNSettings`；PUT double-submit CSRF＋strict JSON（`duckdns_token` write-only），回應只含 `has_duckdns_token` 布林。初次 GREEN 曾把註冊誤綁在 coreSettings guard 內導致 404，改為獨立 guard。
+- `buildApplication` composite 擴為必含 `TLSSettingsManager`（RED 證明缺件可啟動）；main 將 `tlsSettingsStore` 提前建立並同時供 subscription readiness、TLS runtime 與 handler 使用。
+- Web「TLS 與網域」頁：模式切換自動帶出對應 challenge（duckdns→dns_01、sslip_io→http_01）、網域／Email／CA 清單、DuckDNS token 寫入式欄位（留空保留）、條款勾選、憑證狀態（未核發／已核發／簽發失敗）與到期顯示；未核發時明確提示不輸出節點。Vitest 10/10、ESLint、Vite build 全綠。
+- 測試修正三處（均為測試問題非正式碼）：密碼欄位需 `getByLabelText`、狀態文字為完整句子、`user.type` 為附加需先 clear。
+
 ## 2026-08-17：TLS 簽發鏈
 
 - `TLSSettingsStore`：Save 以交易鎖列、`acme.ValidateSettings` 前置驗證、DuckDNS token 以 `acme/duckdns-token` AEAD 密文落地（空值保留既有）、寫 `tls.settings.update` 稽核（不含 token／Email）；GetOverview 只以 `duckdns_token_nonce IS NOT NULL` 衍生 token 存在性，絕不 SELECT 密文；LoadForIssuance 解密 token 並回傳憑證到期時間，未設定回 `acme.ErrNotConfigured`。
