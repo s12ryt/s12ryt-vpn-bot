@@ -2,7 +2,7 @@
 
 通過 Telegram 群組資格驗證後，才可領取私人 VPN 訂閱的管理系統。後端使用 Go 與 PostgreSQL，管理介面使用 React/TypeScript，單一 sing-box 核心提供 VLESS REALITY、Hysteria2、TUIC 與 AnyTLS。
 
-> **開發中**：目前已有核心領域、Telegram 資格查核、管理登入、使用者核准／拒絕／撤銷／輪替、共享配額、流量故障封閉、sing-box 設定、三格式訂閱與加密備份／還原等受測試保護的程式碼。安裝精靈、ACME 自動化、完整設定頁與部署後端到端驗收尚未完成，請勿直接用於正式環境。
+> **開發中**：目前已有核心領域、Telegram 資格查核、管理登入、使用者核准／拒絕／撤銷／輪替、共享配額、流量故障封閉、sing-box 設定、三格式訂閱、加密備份／還原、主機安裝／部署後檢查腳本與 ACME 簽發服務（多 CA 備援、DuckDNS DNS-01、HTTP-01、憑證驗證）等受測試保護的程式碼。TLS 設定頁／資料庫持久化／自動續期排程與部署後端到端驗收尚未完成，請勿直接用於正式環境。
 
 ## 已實作範圍
 
@@ -17,15 +17,16 @@
 - 非 root 多階段映像與 Compose 安全拓撲契約；只有受限 sidecar 可存取 Docker socket。
 - GitHub release workflow 解析最新穩定 sing-box 原始碼，沿用官方 Linux build tags／linker flags與必要的 `with_purego`，另啟用 `with_v2ray_api`，產生 amd64/arm64 GHCR images、SBOM、provenance與漏洞掃描。
 - 每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 加密、可調保留期與完整性驗證後還原。
+- 主機安裝腳本（環境／架構／埠位檢查、0600 `.env` 產生）與部署後自動檢查腳本（Telegram、TLS、訂閱、核心邊界），見 [`docs/installation.md`](docs/installation.md)。
+- ACME 簽發服務與 lego adapter：條款同意、多 CA 備援、sslip.io HTTP-01／DuckDNS DNS-01、憑證與私鑰／網域／有效期驗證，失敗不安裝。
 
 完整需求與驗收契約見 [`agent/question.md`](agent/question.md)。
 
 ## 尚未完成
 
-- 完整 Web 儀表板、資格規則新增／停用、VPN／網路、TLS／網域與備份設定頁。
-- sslip.io、DuckDNS、自有網域的 ACME 申請與續期。
-- 安裝精靈、ACME 自動化與部署後驗收腳本。
-- release workflow 的首次真實發佈與 digest 驗收。
+- TLS／網域設定頁、ACME 設定資料庫持久化、自動續期排程與簽發失敗時停用 VPN 協定的營運流程。
+- Web 儀表板與備份設定頁。
+- release workflow 的首次真實發佈與 digest 驗收（目前被上游 sing-box stable 依賴漏洞阻擋）。
 
 ## 開發需求
 
