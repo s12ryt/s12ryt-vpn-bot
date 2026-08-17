@@ -131,3 +131,12 @@
 - 三格式訂閱 TDD：Base64 URI、sing-box JSON 與 Mihomo 設定均輸出雙棧四協定節點，REALITY 只由私鑰推導並輸出公鑰，不輸出訂閱 token 或私鑰；明確 query 優先、未知 UA 預設 Base64。
 - 訂閱 HTTP TDD：`GET /sub/{token}` 使用 no-store/nosniff，格式錯誤固定 400、無效或不可用 token 固定 404且遮蔽底層。組裝 RED 證明缺少 renderer 會造成部署路徑不完整；GREEN 將 subscription service 設為 `buildApplication` 必填並與 core worker 共用 `CoreSettingsStore`。
 - sing-box 工作項完整回歸：`go test ./...`、`go vet ./...`、Windows server build、Linux amd64 server/core-controller build，以及前端 Vitest 2/2、ESLint、TypeScript/Vite build 全數通過；本機仍無 Docker/gopls，race 與容器整合留 GitHub Linux CI。
+
+## REALITY 搜尋切片（2026-08-17）
+- `internal/reality`：searcher（樣本 200／並發 5／預算 60s、嚴格域名白名單、依延遲排序、逾時回部分結果）、tls_prober（TLS1.3+憑證鏈+主機名驗證、僅 443、可注入 dial hermetic 測試）、embedded dataset（`dataset-top-domains.txt` pinned SHA-256 `e0545a8a...`、sync.Once 快取、空檔/篡改拒絕）、背景 `Service`（idle/running/completed/failed、ErrSearchRunning、Snapshot 深複製）。
+- 缺陷修復兩項：(1) Windows 寫入造成 dataset CRLF 汙染使 pinned checksum 不符 → 以 LF 正規化還原（hash 完全吻合 pinned）並新增 `.gitattributes`（dataset/*.sh 強制 eol=lf、*.ps1/*.bat crlf、其餘 text 正規化），未改 pinned 常數；(2) `Target.Latency` 原標籤 latency_ms 會輸出 ns → 改 `json:"-"` + MarshalJSON/UnmarshalJSON 毫秒整數，RED 斷言 `"latency_ms":42}` 曾因子字串誤綠已加嚴。
+- pre-existing 測試炸彈修復：`cmd/server/tls_runtime_test.go` fixture 用真實 time.Now 產 NotBefore 但 Ensure 固定 now=2026-08-17 11:00 UTC，過 11:01 即紅；改 fixture 接收 now（NotBefore=now-1m、NotAfter=now+90d）。
+- HTTP：`POST /api/settings/reality/search`（owner+CSRF、WithoutCancel 背景、409 running/500 start_failed/202 running）、`GET` 回快照；handler.go 獨立 guard 註冊。
+- server 接線：`buildApplicationWithOptions` 要求 managementSettings 實作 `RealitySearchManager`；main 以 EmbeddedDataset+TLSProber(5s)+Service(200/5/60s) 組裝。
+- Web：core 頁新增「搜尋 REALITY 目標」按鈕（POST 無 body 僅 CSRF header）→ 500ms 輪詢 GET 至非 running（上限 130 次）→ 結果清單顯示 domain/毫秒(toFixed(1))/TLS1.3 與「採用」按鈕填入 reality_server；REALITY 目標 label 改「REALITY 目標網域」；logout 清理。
+- 驗證：`go test ./internal/reality`、全量 `go test ./...`、`go vet ./...`、Windows server build、Linux amd64 server/core-controller 交叉 build、前端 Vitest 13/13、ESLint、Vite build 全綠。
