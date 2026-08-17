@@ -1,5 +1,14 @@
 # 操作與驗證紀錄
 
+## 2026-08-17：TLS 簽發鏈
+
+- `TLSSettingsStore`：Save 以交易鎖列、`acme.ValidateSettings` 前置驗證、DuckDNS token 以 `acme/duckdns-token` AEAD 密文落地（空值保留既有）、寫 `tls.settings.update` 稽核（不含 token／Email）；GetOverview 只以 `duckdns_token_nonce IS NOT NULL` 衍生 token 存在性，絕不 SELECT 密文；LoadForIssuance 解密 token 並回傳憑證到期時間，未設定回 `acme.ErrNotConfigured`。
+- `RecordIssuance` 交易內更新 state/expiry/CA、清失敗欄位、排 active users reconcile 與稽核；`RecordFailure` 只接受封閉 reason（目前 `all_cas_failed`），已簽發且未過期者不受續期失敗影響。migration 010 建立 singleton `tls_settings` 與 mode／challenge／token 配對／簽發完整性 CHECK。
+- `acme.FileInstaller`：clean absolute 路徑、憑證 0644／私鑰 0600、同目錄暫存＋fsync＋rename，不留暫存檔；非 PEM 或空材料拒絕且不落半套檔案。
+- `tlsrunner.Coordinator`：未設定略過、憑證有效期內（到期前 30 天 margin 前）不重簽、簽發成功記錄、全部 CA 失敗記錄封閉原因並回傳錯誤；`Run` 每小時檢查、context 取消正常退出、單輪失敗不中止。測試證明 X.509 秒級時間截斷，RecordIssuance 以解析後葉憑證 NotAfter 為準。
+- `cmd/server` TLS runtime：`reloadingCertificateInstaller` 每次安裝重讀 core settings 的憑證路徑（owner 改路徑免重啟）；`buildTLSRuntime` 缺依賴拒絕；正式 main 以 lego issuer＋TLSSettingsStore 組裝第七個必要 goroutine。
+- 全量驗證：`go test ./...`、`go vet ./...`、Windows／Linux amd64 server 與 controller build 全綠；以 6 個原子 commits 推送。
+
 ## 2026-08-17：安裝腳本與 ACME 服務
 
 - VPN 核心設定切片以 7 個原子 commits 推送（`a6e7006`..`e65f039`），GitHub CI run `31980626310` 全綠。
