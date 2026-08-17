@@ -1,5 +1,11 @@
 # 操作與驗證紀錄
 
+## 2026-08-18：正式 release 補齊備份映像
+
+- 懷疑式對照 Compose 與 release workflow 發現部署必填 `BACKUP_IMAGE`，但正式 release 只發布 app、sing-box 與 controller；即使上游漏洞解除，部署者仍拿不到受同等供應鏈保護的備份服務映像。
+- RED 擴充 release 與 README 契約，要求 `s12ryt-vpn-backup`、本地 amd64 build、發布前 Trivy、amd64／arm64、SBOM、provenance、digest metadata 與首次可見度提醒；舊 workflow 精確失敗於整段缺失。
+- GREEN 新增 backup image 的 local build／scan／multi-arch push，將 `backup_digest` 寫入 immutable source metadata；README 同步列出第四個 GHCR package。直接 deploy tests／vet、全量 Go tests／vet／Windows與Linux builds、前端 Vitest 14/14／lint／build全綠；GitHub Docker/Trivy 行為待 push 後 CI 與未來上游修復後的 release run 補證。
+
 ## 2026-08-18：安裝器 Bot／ACME／Web HTTPS 預檢
 
 - 懷疑式對照需求發現兩個缺口：公開位址提示顯示候選為 default，但 Enter 實際停用該 family；重跑既有 `.env` 又收集不會寫回的值。先以部署契約建立 RED，再讓 Enter 採用候選、`-` 明確停用，既有 `.env` 改為驗證保存值並在 Compose 前再次確認。
