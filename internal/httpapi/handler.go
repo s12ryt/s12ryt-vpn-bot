@@ -94,6 +94,7 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	var dashboard DashboardProvider
 	var botSettings BotSettingsManager
 	var realitySearch RealitySearchManager
+	var backupSettings BackupSettingsManager
 	for _, option := range protections {
 		switch value := option.(type) {
 		case *LoginProtection:
@@ -122,6 +123,8 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 			botSettings = value
 		case RealitySearchManager:
 			realitySearch = value
+		case BackupSettingsManager:
+			backupSettings = value
 		}
 	}
 	mux := http.NewServeMux()
@@ -176,6 +179,9 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 	}
 	if sessions != nil && realitySearch != nil {
 		registerRealitySearchRoutes(mux, sessions, realitySearch)
+	}
+	if sessions != nil && backupSettings != nil {
+		registerBackupSettingsRoutes(mux, sessions, backupSettings)
 	}
 	return mux
 }
