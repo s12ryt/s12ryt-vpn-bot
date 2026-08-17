@@ -2,7 +2,7 @@
 
 通過 Telegram 群組資格驗證後，才可領取私人 VPN 訂閱的管理系統。後端使用 Go 與 PostgreSQL，管理介面使用 React/TypeScript，單一 sing-box 核心提供 VLESS REALITY、Hysteria2、TUIC 與 AnyTLS。
 
-> **開發中**：目前已有核心領域、Telegram 資格查核、管理登入、使用者核准／拒絕／撤銷／輪替、共享配額、流量故障封閉、sing-box 設定、三格式訂閱、加密備份／還原、主機安裝／部署後檢查腳本與 ACME 簽發服務（多 CA 備援、DuckDNS DNS-01、HTTP-01、憑證驗證）等受測試保護的程式碼。TLS 設定頁／資料庫持久化／自動續期排程與部署後端到端驗收尚未完成，請勿直接用於正式環境。
+> **開發中**：目前已有核心領域、Telegram 資格查核、管理登入、使用者核准／拒絕／撤銷／輪替、共享配額、流量故障封閉、sing-box 設定、三格式訂閱、加密備份／還原、主機安裝／部署後檢查腳本，以及 ACME 簽發、TLS 加密持久化、未簽發閘門與自動續期排程等受測試保護的程式碼。真實 Linux 主機上的 Telegram、ACME、四協定與 600 連線端到端驗收尚未完成，請勿直接用於正式環境。
 
 ## 已實作範圍
 
@@ -23,6 +23,7 @@
 - TLS 未核發閘門：核心 active 快照與訂閱輸出在受信任憑證核發且未過期前一律不輸出節點。
 - Web 營運總覽：使用者／待審／封鎖統計、TLS 與核心設定狀態與未完成警示。
 - REALITY 偽裝目標搜尋：內建 pinned 熱門網域資料集，僅探測 443 且要求 TLS 1.3，擁有者於 Web 觸發背景搜尋、檢視延遲排序結果並確認採用，不自動套用。
+- 規模驗證：一般 CI 以 race detector 併發匯入 600 位使用者流量並在 PostgreSQL 17 驗證交易一致性；release 在任何 push 前生成 1,000 使用者、四協定、雙棧設定並以當次固定 sing-box binary 執行 `check -c`。
 
 完整需求與驗收契約見 [`agent/question.md`](agent/question.md)。
 
@@ -60,7 +61,7 @@ PostgreSQL migration integration test 需要可用資料庫：
 
 ```bash
 DATABASE_URL='postgresql://user:password@127.0.0.1:5432/database' \
-  go test -tags=integration ./integration
+  go test -race -tags=integration ./integration
 ```
 
 ## 設定與容器拓撲
@@ -85,7 +86,7 @@ Compose 目前包含：
 - 權限初始化工作，讓非 root containers 使用持久 volumes。
 - 每日執行的非 root 加密 PostgreSQL 備份 service；操作方式見 [`docs/backup-restore.md`](docs/backup-restore.md)。
 
-本機尚未具備 Docker；Compose config、image build、PostgreSQL migration 與 race detector 證據由 GitHub Actions 提供。
+本機尚未具備 Docker；Compose config、image build、PostgreSQL migration、600-user 流量交易與 race detector 證據由 GitHub Actions 提供。
 
 ## 安全注意事項
 
