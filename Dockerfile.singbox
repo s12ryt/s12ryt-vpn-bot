@@ -7,9 +7,14 @@ RUN test -n "${TARGETARCH}" && \
     OFFICIAL_LDFLAGS="$(tr '\r\n' '  ' < release/LDFLAGS)" && \
     CGO_ENABLED=0 GOOS=linux GOARCH="${TARGETARCH}" \
     go build -trimpath -buildvcs=false -tags "${DEFAULT_TAGS},with_purego,with_v2ray_api" \
-      -ldflags="${OFFICIAL_LDFLAGS} -s -w" -o /out/sing-box ./cmd/sing-box
+      -ldflags="${OFFICIAL_LDFLAGS} -s -w" -o /out/sing-box ./cmd/sing-box && \
+    CRONET_MODULE="github.com/sagernet/cronet-go/lib/linux_${TARGETARCH}" && \
+    CRONET_DIR="$(go list -m -f '{{.Dir}}' "${CRONET_MODULE}")" && \
+    test -f "${CRONET_DIR}/libcronet.so" && \
+    install -m 0755 "${CRONET_DIR}/libcronet.so" /out/libcronet.so
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/base-debian12:nonroot
 COPY --from=build /out/sing-box /usr/local/bin/sing-box
+COPY --from=build /out/libcronet.so /usr/local/bin/libcronet.so
 USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/sing-box"]

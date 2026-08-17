@@ -41,10 +41,19 @@ func TestSingBoxDockerfileUsesOfficialLinuxBuildRequirements(t *testing.T) {
 		t.Fatalf("read sing-box Dockerfile: %v", err)
 	}
 	text := string(body)
-	for _, required := range []string{"release/DEFAULT_BUILD_TAGS", "release/LDFLAGS", "with_purego", "with_v2ray_api", "TARGETARCH", "CGO_ENABLED=0", "USER nonroot:nonroot"} {
+	for _, required := range []string{
+		"release/DEFAULT_BUILD_TAGS", "release/LDFLAGS", "with_purego",
+		"with_v2ray_api", "TARGETARCH", "CGO_ENABLED=0", "USER nonroot:nonroot",
+		"gcr.io/distroless/base-debian12:nonroot",
+		"github.com/sagernet/cronet-go/lib/linux_${TARGETARCH}",
+		"libcronet.so",
+	} {
 		if !strings.Contains(text, required) {
 			t.Errorf("sing-box Dockerfile missing %q", required)
 		}
+	}
+	if strings.Contains(text, "gcr.io/distroless/static-debian12") {
+		t.Fatal("purego cronet requires the glibc runtime; distroless static cannot execute this build")
 	}
 }
 
