@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Activity, Bot, Check, Globe, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
+import { Activity, Bot, Check, DatabaseBackup, Globe, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -101,7 +101,11 @@ type RealitySearchSnapshot = {
   targets?: RealitySearchTarget[]
 }
 
-type WorkspaceView = 'overview' | 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'bot' | 'audit'
+type BackupSettings = {
+  retention_days: number
+}
+
+type WorkspaceView = 'overview' | 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'bot' | 'backup' | 'audit'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -152,6 +156,7 @@ function App() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [botSettings, setBotSettings] = useState<BotSettings | null>(null)
   const [botToken, setBotToken] = useState('')
+  const [backupSettings, setBackupSettings] = useState<BackupSettings | null>(null)
   const [qualificationChatID, setQualificationChatID] = useState('')
   const [qualificationChatType, setQualificationChatType] = useState<'supergroup' | 'channel'>('supergroup')
   const [qualificationTitle, setQualificationTitle] = useState('')
@@ -179,6 +184,41 @@ function App() {
     }
     setIdentity(payload)
     return payload
+  }
+
+  async function loadBackupSettings() {
+    const response = await fetch('/api/settings/backup', { credentials: 'include' })
+    if (!response.ok) throw new Error('backup settings unavailable')
+    const payload = await response.json() as { settings: BackupSettings }
+    if (!Number.isInteger(payload.settings?.retention_days) || payload.settings.retention_days < 1 || payload.settings.retention_days > 3650) throw new Error('backup settings invalid')
+    setBackupSettings(payload.settings)
+  }
+
+  async function showBackupSettings() {
+    setView('backup')
+    setError('')
+    try {
+      await loadBackupSettings()
+    } catch {
+      setError('無法載入備份設定。')
+    }
+  }
+
+  async function saveBackupSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!backupSettings) return
+    setError('')
+    try {
+      const response = await fetch('/api/settings/backup', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(backupSettings),
+      })
+      if (!response.ok) throw new Error('backup settings update failed')
+      await loadBackupSettings()
+    } catch {
+      setError('備份設定更新失敗。')
+    }
   }
 
   async function loadAdministrators() {
@@ -351,8 +391,9 @@ function App() {
       setTLSSettings(null)
       setDuckdnsToken('')
       setOverview(null)
-      setBotSettings(null)
-      setBotToken('')
+    setBotSettings(null)
+    setBotToken('')
+    setBackupSettings(null)
       setView('users')
       setLoginCode('')
     } catch {
@@ -617,6 +658,7 @@ function App() {
             {identity?.role === 'owner' && <button className={view === 'core' ? 'nav-active' : ''} type="button" onClick={() => void showCoreSettings()}><Network size={18} />VPN 與網路</button>}
             {identity?.role === 'owner' && <button className={view === 'tls' ? 'nav-active' : ''} type="button" onClick={() => void showTLSSettings()}><Globe size={18} />TLS 憑證</button>}
             {identity?.role === 'owner' && <button className={view === 'bot' ? 'nav-active' : ''} type="button" onClick={() => void showBotSettings()}><Bot size={18} />Bot 設定</button>}
+            {identity?.role === 'owner' && <button className={view === 'backup' ? 'nav-active' : ''} type="button" onClick={() => void showBackupSettings()}><DatabaseBackup size={18} />備份</button>}
             <button className={view === 'audit' ? 'nav-active' : ''} type="button" onClick={() => void showAudit()}><ScrollText size={18} />稽核紀錄</button>
           </nav>
           {view === 'overview' ? <section className="workspace">
@@ -777,6 +819,16 @@ function App() {
               <label>新的 Bot Token<input aria-label="新的 Bot Token" type="password" autoComplete="new-password" value={botToken} onChange={(event) => setBotToken(event.target.value)} placeholder="由 BotFather 重新產生的 Token" /></label>
               <p className="secret-state">只支援同一個 Bot 的 Token 輪替；更換為不同 Bot 需以新環境值重新部署。</p>
               <button className="primary-action" type="submit" disabled={!botToken.trim()}>旋轉 Bot Token</button>
+            </form>}
+          </section> : view === 'backup' ? <section className="workspace">
+            <div className="workspace-heading"><div><span className="section-label">加密資料保護</span><h1>備份與保留</h1></div></div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            {backupSettings && <form className="settings-form" onSubmit={(event) => void saveBackupSettings(event)}>
+              <div className="settings-grid">
+                <label>備份保留天數<input aria-label="備份保留天數" type="number" min="1" max="3650" value={backupSettings.retention_days} onChange={(event) => setBackupSettings({ retention_days: Number(event.target.value) })} /></label>
+              </div>
+              <p className="secret-state">每日備份使用 APP_MASTER_KEY 的用途隔離金鑰加密。變更會在下一次備份後的清理階段生效。</p>
+              <button className="primary-action" type="submit">儲存備份設定</button>
             </form>}
           </section> : <section className="workspace">
             <div className="workspace-heading">

@@ -322,4 +322,28 @@ describe('管理面板登入', () => {
 		await user.click(screen.getByRole('button', { name: '採用 www.example.com' }))
 		expect(screen.getByRole('textbox', { name: 'REALITY 目標網域' })).toHaveValue('www.example.com')
 	})
+
+	it('擁有者可從備份頁調整每日加密備份保留天數', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings: { retention_days: 7 } }) })
+			.mockResolvedValueOnce({ ok: true })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ settings: { retention_days: 14 } }) })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: '備份' }))
+		expect(await screen.findByRole('heading', { name: '備份與保留' })).toBeInTheDocument()
+		const retention = screen.getByRole('spinbutton', { name: '備份保留天數' })
+		await user.clear(retention)
+		await user.type(retention, '14')
+		await user.click(screen.getByRole('button', { name: '儲存備份設定' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/settings/backup', {
+			method: 'PUT', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ retention_days: 14 }),
+		})
+	})
 })
