@@ -43,6 +43,19 @@ func TestReverseProxyGuideCoversSupportedTopologies(t *testing.T) {
 	}
 }
 
+func TestInstallationGuideSeparatesAutomatedAndManualAcceptance(t *testing.T) {
+	contents := string(readRepositoryFile(t, filepath.Join("docs", "installation.md")))
+	for _, required := range []string{
+		"scripts/install.sh", "scripts/post-deploy-check.sh", "VERIFY_SUBSCRIPTION_URL",
+		"VERIFY_QUALIFICATION_CHAT_ID", "VERIFY_TLS_SERVER_NAME", "600", "未完整驗證",
+		"docs/reverse-proxy.md", "docs/backup-restore.md",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Errorf("installation guide missing %q", required)
+		}
+	}
+}
+
 func readRepositoryFile(t *testing.T, name string) []byte {
 	t.Helper()
 	contents, err := os.ReadFile(filepath.Join("..", name))
