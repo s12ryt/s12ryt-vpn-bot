@@ -21,6 +21,7 @@ import (
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/postgres"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/qualification"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/quotasweep"
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/reality"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/secrets"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/singbox"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/subscription"
@@ -190,6 +191,24 @@ func run() error {
 	managementSettingsStore := postgres.NewManagementSettingsStore(transactionRunner, pool, recheckScheduler)
 	qualificationRuleStore := postgres.NewQualificationRuleStore(transactionRunner)
 	qualificationRuleManager := qualification.NewRuleManager(swapAwareBotClient.Identity().ID, swapAwareBotClient, qualificationRuleStore, time.Now, recheckScheduler)
+	realityDataset, err := reality.NewEmbeddedDataset()
+	if err != nil {
+		return err
+	}
+	realityProber, err := reality.NewTLSProber(5*time.Second, nil)
+	if err != nil {
+		return err
+	}
+	realitySearchService := reality.NewService(reality.Options{
+		Dataset:     realityDataset,
+		Prober:      realityProber,
+		SampleLimit: 200,
+		Concurrency: 5,
+		Budget:      60 * time.Second,
+	})
+	if realitySearchService == nil {
+		return errors.New("reality search service options are invalid")
+	}
 	application, err := buildApplicationWithOptions(
 		signalContext,
 		configuration,
@@ -203,7 +222,7 @@ func run() error {
 		adminCommands,
 		administratorStore,
 		auditStore,
-		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager, CoreSettingsManager: coreSettingsManagementStore, TLSSettingsManager: tlsSettingsStore},
+		applicationManagementSettings{ManagementSettingsManager: managementSettingsStore, QualificationRuleManager: qualificationRuleManager, CoreSettingsManager: coreSettingsManagementStore, TLSSettingsManager: tlsSettingsStore, RealitySearchManager: realitySearchService},
 		subscriptionService,
 		userManagementStore,
 		provisioningStore,

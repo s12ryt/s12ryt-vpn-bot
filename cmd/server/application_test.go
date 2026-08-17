@@ -17,6 +17,7 @@ import (
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/domain"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/postgres"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/qualification"
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/reality"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/subscription"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/telegram"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/vpn"
@@ -183,6 +184,31 @@ type applicationManagementSettingsWithoutTLSStub struct {
 	applicationManagementSettingsWithoutCoreStub
 }
 
+func TestBuildApplicationRejectsMissingRealitySearch(t *testing.T) {
+	configuration := config.Config{MasterKey: bytes.Repeat([]byte{7}, 32)}
+	store := &applicationAuthStoreStub{administrator: auth.Administrator{TelegramID: 12345, Role: auth.RoleOwner, Root: true, Active: true}}
+	bot := &applicationBotClientStub{}
+	if _, err := buildApplication(
+		context.Background(), configuration, readinessStub{}, store, bot,
+		bytes.NewReader(make([]byte, 256)), time.Now, &applicationVPNAccessStub{}, &applicationVPNStatusStub{}, &applicationAdminCommandsStub{}, &applicationAdministratorManagementStub{}, applicationAuditStub{}, applicationManagementSettingsWithoutRealitySearchStub{},
+		applicationSubscriptionStub{}, applicationUserManagementStub{}, applicationProvisioningManagementStub{}, applicationApprovalRequestStub{}, applicationCallbackHandlerStub{},
+	); err == nil || !strings.Contains(err.Error(), "reality search") {
+		t.Fatalf("buildApplication() error = %v, want reality search requirement", err)
+	}
+}
+
+type applicationManagementSettingsWithoutRealitySearchStub struct {
+	applicationManagementSettingsWithoutTLSStub
+}
+
+func (applicationManagementSettingsWithoutRealitySearchStub) GetOverview(context.Context) (domain.TLSSettingsOverview, error) {
+	return domain.TLSSettingsOverview{}, nil
+}
+
+func (applicationManagementSettingsWithoutRealitySearchStub) Save(context.Context, int64, domain.TLSSettingsUpdate, time.Time) error {
+	return nil
+}
+
 func (applicationManagementSettingsWithoutTLSStub) GetCore(context.Context) (domain.CoreSettingsOverview, error) {
 	return domain.CoreSettingsOverview{}, nil
 }
@@ -231,6 +257,14 @@ func (applicationManagementSettingsStub) GetOverview(context.Context) (domain.TL
 
 func (applicationManagementSettingsStub) Save(context.Context, int64, domain.TLSSettingsUpdate, time.Time) error {
 	return nil
+}
+
+func (applicationManagementSettingsStub) Start(context.Context) error {
+	return nil
+}
+
+func (applicationManagementSettingsStub) Snapshot() reality.SearchSnapshot {
+	return reality.SearchSnapshot{Status: reality.SearchStatusIdle}
 }
 
 type applicationManagementSettingsWithoutCoreStub struct {
