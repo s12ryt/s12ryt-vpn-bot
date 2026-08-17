@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { Check, Globe, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
+import { Activity, Check, Globe, KeyRound, LogOut, Network, RefreshCw, ScrollText, Settings2, ShieldCheck, ShieldX, Trash2, UserCog, UserRound, Users, X } from 'lucide-react'
 
 import './styles.css'
 
@@ -79,7 +79,13 @@ type TLSSettings = {
   last_issued_ca: string
 }
 
-type WorkspaceView = 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'audit'
+type Overview = {
+  users: { total_users: number; active_users: number; pending_approvals: number; blocked_users: number; total_used_bytes: number }
+  tls_issued: boolean
+  core_configured: boolean
+}
+
+type WorkspaceView = 'overview' | 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'audit'
 
 function formatBytes(bytes: number) {
   return `${(bytes / 1_000_000_000).toFixed(2)} GB`
@@ -125,6 +131,7 @@ function App() {
   const [realityPrivateKey, setRealityPrivateKey] = useState('')
   const [tlsSettings, setTLSSettings] = useState<TLSSettings | null>(null)
   const [duckdnsToken, setDuckdnsToken] = useState('')
+  const [overview, setOverview] = useState<Overview | null>(null)
   const [qualificationChatID, setQualificationChatID] = useState('')
   const [qualificationChatType, setQualificationChatType] = useState<'supergroup' | 'channel'>('supergroup')
   const [qualificationTitle, setQualificationTitle] = useState('')
@@ -185,6 +192,24 @@ function App() {
     if (!payload || typeof payload.configured !== 'boolean' || typeof payload.has_reality_private_key !== 'boolean') throw new Error('core settings invalid')
     setCoreSettings(payload)
     setRealityPrivateKey('')
+  }
+
+  async function loadOverview() {
+    const response = await fetch('/api/overview', { credentials: 'include' })
+    if (!response.ok) throw new Error('overview unavailable')
+    const payload = await response.json() as Overview
+    if (!payload.users || typeof payload.tls_issued !== 'boolean' || typeof payload.core_configured !== 'boolean') throw new Error('overview invalid')
+    setOverview(payload)
+  }
+
+  async function showOverview() {
+    setError('')
+    try {
+      await loadOverview()
+      setView('overview')
+    } catch {
+      setError('無法載入營運總覽。')
+    }
   }
 
   async function loadTLSSettings() {
@@ -266,6 +291,7 @@ function App() {
       setRealityPrivateKey('')
       setTLSSettings(null)
       setDuckdnsToken('')
+      setOverview(null)
       setView('users')
       setLoginCode('')
     } catch {
@@ -491,6 +517,7 @@ function App() {
         </header>
         <div className="app-layout">
           <nav className="side-nav" aria-label="管理功能">
+            <button className={view === 'overview' ? 'nav-active' : ''} type="button" onClick={() => void showOverview()}><Activity size={18} />總覽</button>
             <button className={view === 'users' ? 'nav-active' : ''} type="button" onClick={() => setView('users')}><Users size={18} />使用者</button>
             {identity?.role === 'owner' && <button className={view === 'administrators' ? 'nav-active' : ''} type="button" onClick={() => void showAdministrators()}><UserCog size={18} />管理員</button>}
             {identity?.role === 'owner' && <button className={view === 'settings' ? 'nav-active' : ''} type="button" onClick={() => void showManagementSettings()}><Settings2 size={18} />資格群組</button>}
@@ -498,7 +525,21 @@ function App() {
             {identity?.role === 'owner' && <button className={view === 'tls' ? 'nav-active' : ''} type="button" onClick={() => void showTLSSettings()}><Globe size={18} />TLS 憑證</button>}
             <button className={view === 'audit' ? 'nav-active' : ''} type="button" onClick={() => void showAudit()}><ScrollText size={18} />稽核紀錄</button>
           </nav>
-          {view === 'users' ? <section className="workspace">
+          {view === 'overview' ? <section className="workspace">
+            <div className="workspace-heading"><div><span className="section-label">系統狀態</span><h1>營運總覽</h1></div></div>
+            {error && <p role="alert" className="form-error">{error}</p>}
+            {overview && <>
+              <div className="settings-grid">
+                <div className="overview-stat"><strong>{overview.users.total_users.toLocaleString('en-US')}</strong><span>已知使用者</span></div>
+                <div className="overview-stat"><strong>{overview.users.active_users.toLocaleString('en-US')}</strong><span>使用中</span></div>
+                <div className="overview-stat"><strong>{overview.users.pending_approvals.toLocaleString('en-US')}</strong><span>等待核准</span></div>
+                <div className="overview-stat"><strong>{overview.users.blocked_users.toLocaleString('en-US')}</strong><span>已封鎖</span></div>
+                <div className="overview-stat"><strong>{formatBytes(overview.users.total_used_bytes)}</strong><span>本期總流量</span></div>
+              </div>
+              {!overview.tls_issued && <p role="alert" className="form-error">TLS 憑證尚未核發，系統不會輸出 VPN 節點。</p>}
+              {!overview.core_configured && <p role="alert" className="form-error">VPN 核心尚未完成設定。</p>}
+            </>}
+          </section> : view === 'users' ? <section className="workspace">
             <div className="workspace-heading">
               <div><span className="section-label">存取控制</span><h1>使用者與流量</h1></div>
               <button className="icon-button" type="button" title="重新整理" aria-label="重新整理" onClick={() => void loadUsers()}><RefreshCw size={18} /></button>

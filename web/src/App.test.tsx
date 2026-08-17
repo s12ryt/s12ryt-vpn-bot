@@ -249,4 +249,22 @@ describe('管理面板登入', () => {
 			}),
 		})
 	})
+
+	it('登入後顯示營運總覽與未完成設定警示', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'administrator', root: false }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: { total_users: 1200, active_users: 900, pending_approvals: 15, blocked_users: 4, total_used_bytes: 4500000000000 }, tls_issued: false, core_configured: true }) })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: '總覽' }))
+		expect(await screen.findByRole('heading', { name: '營運總覽' })).toBeInTheDocument()
+		expect(screen.getByText('1,200')).toBeInTheDocument()
+		expect(screen.getByText('900')).toBeInTheDocument()
+		expect(screen.getByText('15')).toBeInTheDocument()
+		expect(fetchMock).toHaveBeenCalledWith('/api/overview', expect.objectContaining({ credentials: 'include' }))
+		expect(screen.getByText('TLS 憑證尚未核發，系統不會輸出 VPN 節點。')).toBeInTheDocument()
+	})
 })
