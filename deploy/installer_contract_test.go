@@ -42,3 +42,26 @@ func TestPostDeployCheckCoversRealIntegrationBoundaries(t *testing.T) {
 		t.Fatal("post-deploy checker must not enable shell tracing with secrets")
 	}
 }
+
+func TestPostDeployCheckCannotReportCompleteWithoutExternalEvidence(t *testing.T) {
+	contents := string(readRepositoryFile(t, filepath.Join("scripts", "post-deploy-check.sh")))
+	for _, required := range []string{
+		"VERIFY_EXTERNAL_EVIDENCE_FILE",
+		"protocols_dual_stack",
+		"ipv6_only_egress",
+		"ipv4_enabled_egress",
+		"traffic_accounting",
+		"quota_enforcement",
+		"period_recovery",
+		"restart_behavior",
+		"concurrent_connections_600",
+		"外部驗收證據不完整",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Errorf("post-deploy checker missing external evidence gate %q", required)
+		}
+	}
+	if strings.Contains(contents, "需人工／負載環境續驗") {
+		t.Fatal("post-deploy checker must fail closed instead of succeeding with an incomplete verification notice")
+	}
+}

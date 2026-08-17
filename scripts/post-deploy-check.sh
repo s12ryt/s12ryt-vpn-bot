@@ -18,6 +18,7 @@ set +a
 : "${VERIFY_QUALIFICATION_CHAT_ID:?請設定 VERIFY_QUALIFICATION_CHAT_ID}"
 : "${VERIFY_SUBSCRIPTION_URL:?請設定 VERIFY_SUBSCRIPTION_URL}"
 : "${VERIFY_TLS_SERVER_NAME:?請設定 VERIFY_TLS_SERVER_NAME}"
+: "${VERIFY_EXTERNAL_EVIDENCE_FILE:?請設定 VERIFY_EXTERNAL_EVIDENCE_FILE 指向外部驗收證據 JSON}"
 VERIFY_TLS_PORT="${VERIFY_TLS_PORT:-8443}"
 
 tmp_dir="$(mktemp -d)"
@@ -73,4 +74,26 @@ docker exec s12ryt-sing-box /usr/local/bin/sing-box check -c /var/lib/s12ryt/sin
 docker exec s12ryt-sing-box /usr/local/bin/sing-box version >/dev/null || fail "sing-box binary 不可執行"
 pass 'sing-box 核心設定'
 
-printf '需人工／負載環境續驗：IPv6-only 實際出站、四協定握手、流量統計、50GB 配額封鎖、30日恢復、重啟預告與600並行連線。\n'
+[[ -f "$VERIFY_EXTERNAL_EVIDENCE_FILE" && ! -L "$VERIFY_EXTERNAL_EVIDENCE_FILE" ]] || fail "外部驗收證據必須是一般檔案且不可為符號連結"
+jq -e '
+  . as $root |
+  ($root | type == "object") and
+  $root.schema_version == 1 and
+  ($root.recorded_at | type == "string" and length > 0) and
+  ($root.operator | type == "string" and length > 0) and
+  ($root.host | type == "string" and length > 0) and
+  ([
+    "protocols_dual_stack",
+    "ipv6_only_egress",
+    "ipv4_enabled_egress",
+    "traffic_accounting",
+    "quota_enforcement",
+    "period_recovery",
+    "restart_behavior",
+    "concurrent_connections_600"
+  ] | all(. as $name |
+    ($root.checks[$name].passed == true) and
+    ($root.checks[$name].evidence | type == "string" and length > 0)
+  ))
+' "$VERIFY_EXTERNAL_EVIDENCE_FILE" >/dev/null || fail "外部驗收證據不完整"
+pass '外部四協定雙棧、IPv6-only／IPv4 出站、計量、配額、重啟與600連線驗收證據'

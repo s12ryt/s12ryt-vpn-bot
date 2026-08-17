@@ -35,10 +35,32 @@ export VERIFY_QUALIFICATION_CHAT_ID=-1001234567890
 export VERIFY_SUBSCRIPTION_URL='https://vpn.example.com/sub/REDACTED'
 export VERIFY_TLS_SERVER_NAME='node.example.com'
 export VERIFY_TLS_PORT=8443
+export VERIFY_EXTERNAL_EVIDENCE_FILE='/root/vpn-acceptance-evidence.json'
 ./scripts/post-deploy-check.sh
 ```
 
-腳本會實際呼叫 Telegram `getMe` 與 `getChatMember`，確認 Bot 是資格群組管理員；驗證 Web live/ready、TLS chain與名稱、私人訂閱四協定／雙棧結構、sing-box config、容器與受限核心控制／traffic spool 掛載。訂閱 URL 只寫入權限受限的暫存 curl config，離開時刪除。
+腳本會實際呼叫 Telegram `getMe` 與 `getChatMember`，確認 Bot 是資格群組管理員；驗證 Web live/ready、TLS chain與名稱、私人訂閱四協定／雙棧結構、sing-box config、容器與受限核心控制／traffic spool 掛載。訂閱 URL 只寫入權限受限的暫存 curl config，離開時刪除。腳本最後會驗證外部測試證據；缺少證據或任一項未通過時會以非零狀態結束，不會把局部結構檢查誤報成完整驗收。
+
+外部客戶端與負載測試完成後，建立不含 token、密碼或憑證的 JSON manifest。每個 `evidence` 應指向保存於部署方受控位置的測試輸出、監控快照或變更紀錄：
+
+```json
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-18T12:00:00Z",
+  "operator": "deployment-owner",
+  "host": "vpn.example.com",
+  "checks": {
+    "protocols_dual_stack": {"passed": true, "evidence": "evidence/protocols-dual-stack.txt"},
+    "ipv6_only_egress": {"passed": true, "evidence": "evidence/ipv6-only.txt"},
+    "ipv4_enabled_egress": {"passed": true, "evidence": "evidence/ipv4-enabled.txt"},
+    "traffic_accounting": {"passed": true, "evidence": "evidence/traffic-accounting.txt"},
+    "quota_enforcement": {"passed": true, "evidence": "evidence/quota-enforcement.txt"},
+    "period_recovery": {"passed": true, "evidence": "evidence/period-recovery.txt"},
+    "restart_behavior": {"passed": true, "evidence": "evidence/restart-behavior.txt"},
+    "concurrent_connections_600": {"passed": true, "evidence": "evidence/load-600.txt"}
+  }
+}
+```
 
 ## 未完整驗證
 
@@ -50,4 +72,4 @@ export VERIFY_TLS_PORT=8443
 4. 計畫重啟30秒通知、安全撤銷立即套用及核心失敗 rollback。
 5. 1,000 使用者設定與600並行真實連線的主機吞吐、延遲與資源用量。
 
-以上任一項未執行時，報告必須標示「未完整驗證」，不得以 CI fake、設定語法檢查或人工推測取代。
+以上任一項未執行時，不得建立 `passed: true` 的證據項目；腳本會以「外部驗收證據不完整」失敗。不得以 CI fake、設定語法檢查或人工推測取代真實證據。
