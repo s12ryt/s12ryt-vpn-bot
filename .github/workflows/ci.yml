@@ -81,7 +81,7 @@ jobs:
       - name: Test migrations against PostgreSQL
         env:
           DATABASE_URL: postgresql://integration:integration-password@127.0.0.1:5432/integration?sslmode=disable
-        run: go test -tags=integration ./integration
+        run: go test -race -tags=integration ./integration
 
   containers:
     runs-on: ubuntu-latest

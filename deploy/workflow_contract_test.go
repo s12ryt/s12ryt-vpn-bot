@@ -17,7 +17,7 @@ func TestCIWorkflowCoversRequiredVerification(t *testing.T) {
 		"permissions:\n  contents: read",
 		"go test -race ./...",
 		"go vet ./...",
-		"go test -tags=integration ./integration",
+		"go test -race -tags=integration ./integration",
 		"npm ci",
 		"npm test -- --run",
 		"npm run lint",
@@ -49,6 +49,19 @@ func TestPostgresIntegrationTestExists(t *testing.T) {
 	for _, required := range []string{"//go:build integration", "postgres.Migrate", "schema_migrations"} {
 		if !strings.Contains(text, required) {
 			t.Errorf("PostgreSQL integration test missing %q", required)
+		}
+	}
+}
+
+func TestTrafficScaleIntegrationTestExists(t *testing.T) {
+	body, err := os.ReadFile("../integration/traffic_scale_test.go")
+	if err != nil {
+		t.Fatalf("read traffic scale integration test: %v", err)
+	}
+	text := string(body)
+	for _, required := range []string{"//go:build integration", "600", "RecordPendingBatch", "used_bytes"} {
+		if !strings.Contains(text, required) {
+			t.Errorf("traffic scale integration test missing %q", required)
 		}
 	}
 }
