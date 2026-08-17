@@ -1,5 +1,14 @@
 # 操作與驗證紀錄
 
+## 2026-08-17：規模驗收契約補齊
+
+- 懷疑式重讀 `agent/question.md` 發現既定第 17 節的規模驗收從未真正建立：CI 應生成 1,000 使用者×四協定×雙棧設定並執行固定 release sing-box `check -c`；另需 600 使用者並行流量匯入、交易一致性、race 與 bounded time 證據。
+- `internal/singbox/generator_scale_test.go` 驗證 1,000 使用者在 8 個 inbound 中各完整存在、stats users 1,000 筆、設定 deterministic、30 秒內完成且不洩漏 subscription token。`cmd/scaleconfig` 提供 release 專用 deterministic config；第一輪 GREEN 正確抓出非 canonical REALITY private key，改用明確 32-byte Raw Base64URL 編碼而未放寬 generator。
+- release workflow 在本地 `scan-local:singbox` image 建成後、Trivy 與任何 push 前，生成一次性測試 TLS 憑證與 1,000-user config，以 read-only/network-none/cap-drop container 執行真實 `sing-box check -c`。順序刻意放在已知上游漏洞的 Trivy 前，讓上游未修期間仍可取得 schema check 證據。
+- `internal/trafficstats/collector_scale_test.go` 以 600 位使用者的四協定／雙棧聚合計數，對同一 immutable Collector 執行 16 路並行採集；一般 Go CI 的 `-race` 驗證共享路徑無資料競爭。
+- `integration/traffic_scale_test.go` 在 PostgreSQL 17 建立 600 位 active users，以 12 個 goroutine、每批 50 人呼叫 `RecordPendingBatch`；驗證 600 筆完整提交、每人 used_bytes=24、活動時間更新、無錯誤核心 transition、重播 batch 不重複計費及 60 秒 bounded time。CI integration job 改為 `go test -race -tags=integration ./integration`。
+- 本機證據：規模套件 tests、全量 `go test ./...`、`go vet ./...`、Windows server build、Linux amd64 server/controller build、前端 Vitest 13/13、ESLint、TypeScript/Vite build全綠。本機無 PostgreSQL/Docker，真實 integration 與 sing-box check 待 GitHub Linux workflow 執行，不提前宣稱通過。
+
 ## 2026-08-17：Bot Token 熱切換
 
 - `telegram.SwapAwareClient`：mutex 保護的原子委派 client，實作所有既有窄介面（UpdateClient/GetMe/GetChatMember/SendMessage/SendPhoto/SendApprovalRequest/AnswerCallbackQuery）；`Swap` 以可注入 verifier（正式傳真 `GetMe`）驗證候選 token 屬同一 Bot（同 ID、IsBot、非空 username），失敗絕不替換；`ErrBotIdentityChanged`／`ErrBotVerificationFailed` 為封閉 sentinel。

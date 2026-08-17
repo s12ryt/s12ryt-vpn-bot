@@ -34,10 +34,11 @@
 - [x] 完成 Web 營運總覽：`GET /api/overview`（管理者可讀，聚合使用者統計、TLS 已核發、核心已設定）與「總覽」頁含未完成設定警示。
 - [x] 完成 Bot Token 安全熱切換：`bot_settings` AEAD 密文保存（DB 優先於環境值）、`getMe` 驗證同一 Bot、先持久化再以 SwapAwareClient 原子替換 live client、owner API／Web 頁與稽核。
 - [x] 完成 REALITY 自動目標搜尋：內建 pinned SHA-256 熱門網域資料集（LF 行尾由 `.gitattributes` 保護）、TLS 1.3 限定並只探測 443 的 prober、樣本≤200／並發≤5／預算≤60s 的 searcher、背景 Service（running/completed/failed 快照）、owner API `POST/GET /api/settings/reality/search`（202+輪詢，不自動套用）與 Web「VPN 與網路」頁搜尋／採用結果 UI；Target 以毫秒 marshalling。同輪修復 `tls_runtime_test.go` 依賴真實時間的測試炸彈（fixture 改接收固定 now）。
+- [x] 補齊規模 CI：生成 1,000 使用者×四協定×雙棧 deterministic 設定，release 以固定當次 sing-box binary 在任何 push 前執行 `check -c`；PostgreSQL 17 integration 以 12 個並行交易匯入 600 位使用者，驗證共享配額、活動時間、batch idempotence、有界時間與 race。
 - [x] 建立非 root 多階段應用／控制器映像與 Compose 安全拓撲契約；PostgreSQL 僅綁 loopback，只有 sidecar 掛載 Docker socket。
 - [x] 建立不含真實秘密的 `.env.example`，要求明確資料庫 URL、根金鑰產生方式與不可變 sing-box image digest。
-- [ ] 完成 Telegram 使用者命令、inline 審批與管理操作。
-- [ ] 依 RED → GREEN → REFACTOR 完成領域、整合、Web、部署與供應鏈。
+- [x] 完成 Telegram 使用者命令、inline 審批與管理操作。
+- [x] 依 RED → GREEN → REFACTOR 完成領域、整合、Web、部署與供應鏈本地可驗證部分。
 - [x] 建立並推送公開 `s12ryt/s12ryt-vpn-bot`。
 - [x] 建立最新穩定 sing-box、應用與受限控制器的多架構 GHCR release workflow，含 SBOM、provenance 與 Trivy gate。
 - [x] 完成每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 封存、0600 原子落盤、可調保留期與完整性驗證後還原命令。
