@@ -115,9 +115,11 @@ jobs:
             -subj '/CN=vpn.example.com' \
             -keyout .release/tls/privkey.pem \
             -out .release/tls/fullchain.pem >/dev/null 2>&1
+          chmod 0600 .release/tls/privkey.pem
           go run ./cmd/scaleconfig > .release/scale-config.json
           test "$(jq '.inbounds | length' .release/scale-config.json)" -eq 8
           docker run --rm --network none --read-only \
+            --user "$(id -u):$(id -g)" \
             --security-opt no-new-privileges --cap-drop ALL \
             --volume "${PWD}/.release/scale-config.json:/tmp/config.json:ro" \
             --volume "${PWD}/.release/tls:/run/tls:ro" \

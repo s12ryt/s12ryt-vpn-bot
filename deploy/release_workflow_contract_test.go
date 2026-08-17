@@ -145,6 +145,12 @@ func TestReleaseWorkflowVerifiesThousandUserConfiguration(t *testing.T) {
 	if !strings.Contains(string(workflow), "check -c") {
 		t.Fatal("release workflow must run sing-box check against the 1000-user configuration before publishing")
 	}
+	if !strings.Contains(string(workflow), `--user "$(id -u):$(id -g)"`) {
+		t.Fatal("scale check must run with the runner UID/GID so its mode-0600 fixture key remains readable without widening permissions")
+	}
+	if !strings.Contains(string(workflow), "chmod 0600 .release/tls/privkey.pem") {
+		t.Fatal("scale-check private key must remain owner-readable only")
+	}
 	if _, err := os.Stat("../cmd/scaleconfig/main.go"); err != nil {
 		t.Fatal("cmd/scaleconfig must exist so the scale check can generate its input")
 	}
