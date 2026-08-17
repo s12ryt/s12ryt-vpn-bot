@@ -6,6 +6,7 @@
 - GREEN 將 IPv4／IPv6 各自向 api.ipify.org、ifconfig.co 與 icanhazip.com 查詢，嚴格驗證回應；至少兩個來源一致才提供可信候選。部署者逐一輸入最終值，可停用單一 family，但不可同時停用；未明確確認時在 `docker compose config`／pull／up 前 fail closed。
 - 新建 `.env` 保存 `PUBLIC_IPV4`／`PUBLIC_IPV6` 作 Web「VPN 與網路」設定核對資料，不自動繞過完整核心、TLS／REALITY 驗證。品質複查同時移除 install.sh 遺留、已無權威性的 `BACKUP_RETENTION_DAYS=7`。
 - 驗證：deploy RED→GREEN、`go test ./...`、`go vet ./...`、Windows server／backup／restore build、`bash -n`、前端 Vitest 14/14、ESLint與Vite build全綠；ShellCheck與真實 Linux互動流程由GitHub CI補證。
+- 首次 push 的 CI run `32068751759` 讓本機不可用的 ShellCheck 找到 `local -n` nameref 賦值被判定為 SC2034。保留行為並改用 Bash `printf -v` 動態賦值後，GitHub CI run `32069222987` 全綠：race、vet、ShellCheck、Linux build、PostgreSQL 17 integration、Web、Compose及 app／controller／backup images 均通過。
 
 ## 2026-08-18：部署後驗收 fail-closed 證據閘門
 
