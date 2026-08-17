@@ -22,7 +22,7 @@
 - Bot Token 安全熱切換：AES-GCM 加密保存、`getMe` 驗證同一 Bot 身分後先持久化再原子替換 live client，owner Web「Bot 與 Token」頁操作並留稽核。
 - TLS 未核發閘門：核心 active 快照與訂閱輸出在受信任憑證核發且未過期前一律不輸出節點。
 - Web 營運總覽：使用者／待審／封鎖統計、TLS 與核心設定狀態與未完成警示。
-- REALITY 偽裝目標搜尋：內建 pinned 熱門網域資料集，僅探測 443 且要求 TLS 1.3，擁有者於 Web 觸發背景搜尋、檢視延遲排序結果並確認採用，不自動套用。
+- REALITY 偽裝目標搜尋與健康監控：內建 pinned 熱門網域資料集，僅探測 443 且要求 TLS 1.3；擁有者於 Web 搜尋並確認採用。目前目標每小時檢查一次，故障／恢復只在持久狀態轉換時通知管理者，永不自動切換。
 - 規模驗證：一般 CI 以 race detector 併發匯入 600 位使用者流量並在 PostgreSQL 17 驗證交易一致性；release 在任何 push 前生成 1,000 使用者、四協定、雙棧設定並以當次固定 sing-box binary 執行 `check -c`。
 
 完整需求與驗收契約見 [`agent/question.md`](agent/question.md)。
