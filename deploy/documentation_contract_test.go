@@ -116,6 +116,9 @@ func TestReleasePublicationVisibilityIsDocumented(t *testing.T) {
 	if !strings.Contains(string(readme), "套件可見度") {
 		t.Fatal("README must document that first-release packages default to private and how to publish them")
 	}
+	if !strings.Contains(string(readme), "s12ryt-vpn-backup") {
+		t.Fatal("README must include the released backup package in the visibility instructions")
+	}
 	workflow, err := os.ReadFile("../.github/workflows/release.yml")
 	if err != nil {
 		t.Fatalf("read release workflow: %v", err)

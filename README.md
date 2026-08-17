@@ -15,7 +15,7 @@
 - Bot 私聊 `/vpn`、`/status` 與 QR，以及管理員 inline 核准／拒絕和查詢／撤銷／輪替命令。
 - 繁體中文響應式使用者、角色、稽核與資格／配額政策管理頁。
 - 非 root 多階段映像與 Compose 安全拓撲契約；只有受限 sidecar 可存取 Docker socket。
-- GitHub release workflow 解析最新穩定 sing-box 原始碼，沿用官方 Linux build tags／linker flags與必要的 `with_purego`，另啟用 `with_v2ray_api`，產生 amd64/arm64 GHCR images、SBOM、provenance與漏洞掃描。
+- GitHub release workflow 解析最新穩定 sing-box 原始碼，沿用官方 Linux build tags／linker flags與必要的 `with_purego`，另啟用 `with_v2ray_api`；應用、核心、受限 controller 與備份服務均產生 amd64/arm64 GHCR images、SBOM、provenance、digest 與發布前漏洞掃描。
 - 每日 PostgreSQL custom-format dump、用途隔離 AES-GCM 加密、Web 動態可調保留期與完整性驗證後還原。
 - 主機安裝腳本（環境／架構／埠位檢查、三個外部來源交叉偵測公開 IPv4／IPv6、部署者修改與確認、Telegram Bot 身分、ACME 非秘密參考值與 Web HTTPS 拓撲預檢、0600 `.env` 產生）與部署後自動檢查腳本（Telegram、TLS、訂閱、核心邊界），見 [`docs/installation.md`](docs/installation.md)。
 - ACME 簽發服務與 lego adapter：條款同意、多 CA 備援、sslip.io／自有網域 HTTP-01、DuckDNS DNS-01、憑證與私鑰／網域／有效期驗證，失敗不安裝；通用 custom DNS-01 尚未提供 provider 憑證持久化，安裝器不會宣傳不可用選項。
@@ -34,7 +34,7 @@
 
 ### 套件可見度（首次成功發佈後必做）
 
-GHCR 上由 workflow 首次推送建立的 package 一律是 **private**。首次 release 成功後，請在 GitHub 套件頁面（Packages → `s12ryt-sing-box`、`s12ryt-vpn-bot`、`s12ryt-vpn-core-controller` → Package settings → Danger Zone → Change visibility → Public）將需要匿名拉取的套件設為 public；或讓部署主機以具 `read:packages` 權限的 token 執行 `docker login ghcr.io`。未調整前，匿名 `docker pull ghcr.io/s12ryt/...` 會被拒絕。
+GHCR 上由 workflow 首次推送建立的 package 一律是 **private**。首次 release 成功後，請在 GitHub 套件頁面（Packages → `s12ryt-sing-box`、`s12ryt-vpn-bot`、`s12ryt-vpn-backup`、`s12ryt-vpn-core-controller` → Package settings → Danger Zone → Change visibility → Public）將需要匿名拉取的套件設為 public；或讓部署主機以具 `read:packages` 權限的 token 執行 `docker login ghcr.io`。未調整前，匿名 `docker pull ghcr.io/s12ryt/...` 會被拒絕。
 
 ## 開發需求
 
