@@ -90,6 +90,17 @@ type BotSettings = {
   updated_at: string
 }
 
+type RealitySearchTarget = {
+  domain: string
+  tls13: boolean
+  latency_ms: number
+}
+
+type RealitySearchSnapshot = {
+  status: 'idle' | 'running' | 'completed' | 'failed'
+  targets?: RealitySearchTarget[]
+}
+
 type WorkspaceView = 'overview' | 'users' | 'administrators' | 'settings' | 'core' | 'tls' | 'bot' | 'audit'
 
 function formatBytes(bytes: number) {
@@ -134,6 +145,8 @@ function App() {
   const [qualificationRules, setQualificationRules] = useState<QualificationRule[]>([])
   const [coreSettings, setCoreSettings] = useState<CoreSettings | null>(null)
   const [realityPrivateKey, setRealityPrivateKey] = useState('')
+  const [realityTargets, setRealityTargets] = useState<RealitySearchTarget[]>([])
+  const [realitySearchStatus, setRealitySearchStatus] = useState<RealitySearchSnapshot['status']>('idle')
   const [tlsSettings, setTLSSettings] = useState<TLSSettings | null>(null)
   const [duckdnsToken, setDuckdnsToken] = useState('')
   const [overview, setOverview] = useState<Overview | null>(null)
@@ -333,6 +346,8 @@ function App() {
       setQualificationRules([])
       setCoreSettings(null)
       setRealityPrivateKey('')
+      setRealityTargets([])
+      setRealitySearchStatus('idle')
       setTLSSettings(null)
       setDuckdnsToken('')
       setOverview(null)
@@ -485,6 +500,38 @@ function App() {
       await loadCoreSettings()
     } catch {
       setError('VPN 核心設定儲存失敗，請檢查位址、連接埠與憑證資料。')
+    }
+  }
+
+  async function pollRealitySearch(attempts: number) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => { setTimeout(resolve, 500) })
+      const response = await fetch('/api/settings/reality/search', { credentials: 'include' })
+      if (!response.ok) throw new Error('reality search poll failed')
+      const snapshot = await response.json() as RealitySearchSnapshot
+      if (!['idle', 'running', 'completed', 'failed'].includes(snapshot.status)) throw new Error('reality search snapshot invalid')
+      if (snapshot.status === 'running') continue
+      setRealitySearchStatus(snapshot.status)
+      setRealityTargets(snapshot.status === 'completed' && Array.isArray(snapshot.targets) ? snapshot.targets : [])
+      return
+    }
+    setError('REALITY 目標搜尋仍在執行，請稍後回到本頁查看結果。')
+  }
+
+  async function searchRealityTargets() {
+    setError('')
+    setRealityTargets([])
+    setRealitySearchStatus('running')
+    try {
+      const response = await fetch('/api/settings/reality/search', {
+        method: 'POST', credentials: 'include', headers: { 'X-CSRF-Token': csrfToken },
+      })
+      if (!response.ok) throw new Error('reality search start failed')
+      await pollRealitySearch(130)
+    } catch {
+      setRealitySearchStatus('failed')
+      setRealityTargets([])
+      setError('REALITY 目標搜尋失敗，請稍後再試。')
     }
   }
 
@@ -673,7 +720,7 @@ function App() {
                 <label>TLS 網域<input value={coreSettings.tls_server_name} onChange={(event) => updateCoreSetting('tls_server_name', event.target.value)} /></label>
                 <label>TLS 憑證路徑<input value={coreSettings.tls_certificate_path} onChange={(event) => updateCoreSetting('tls_certificate_path', event.target.value)} /></label>
                 <label>TLS 私鑰路徑<input value={coreSettings.tls_key_path} onChange={(event) => updateCoreSetting('tls_key_path', event.target.value)} /></label>
-                <label>REALITY 目標<input value={coreSettings.reality_server} onChange={(event) => updateCoreSetting('reality_server', event.target.value)} /></label>
+                <label>REALITY 目標網域<input aria-label="REALITY 目標網域" value={coreSettings.reality_server} onChange={(event) => updateCoreSetting('reality_server', event.target.value)} /></label>
                 <label>REALITY 目標 port<input type="number" min="1" max="65535" value={coreSettings.reality_server_port} onChange={(event) => updateCoreSetting('reality_server_port', Number(event.target.value))} /></label>
                 <label>REALITY short ID<input value={coreSettings.reality_short_id} onChange={(event) => updateCoreSetting('reality_short_id', event.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 16))} /></label>
                 <label>Stats 監聽<input value={coreSettings.stats_listen} onChange={(event) => updateCoreSetting('stats_listen', event.target.value)} /></label>
@@ -683,6 +730,21 @@ function App() {
               <label className="toggle-control"><input aria-label="允許 IPv4 出站" type="checkbox" checked={coreSettings.allow_ipv4_outbound} onChange={(event) => updateCoreSetting('allow_ipv4_outbound', event.target.checked)} /><span>允許 IPv4 出站</span></label>
               <button className="primary-action" type="submit">儲存 VPN 設定</button>
             </form>}
+            <div className="reality-search" aria-label="REALITY 目標搜尋">
+              <h2>REALITY 目標搜尋</h2>
+              <p className="secret-state">從內建熱門網域資料集探測 TLS 1.3 可用目標，結果僅供參考，採用後仍需儲存設定。</p>
+              <button type="button" onClick={() => void searchRealityTargets()} disabled={realitySearchStatus === 'running'}>{realitySearchStatus === 'running' ? '搜尋中' : '搜尋 REALITY 目標'}</button>
+              {realitySearchStatus === 'running' && <p className="secret-state">搜尋中，最多約一分鐘，結果會自動出現。</p>}
+              {realitySearchStatus === 'failed' && <p className="secret-state">上次搜尋失敗。</p>}
+              {realityTargets.length > 0 && <ul className="reality-targets">
+                {realityTargets.map((target) => (
+                  <li key={target.domain}>
+                    <span>{target.domain}（{target.latency_ms.toFixed(1)} ms{target.tls13 ? '' : '，TLS 1.3 未確認'}）</span>
+                    <button type="button" aria-label={`採用 ${target.domain}`} onClick={() => updateCoreSetting('reality_server', target.domain)}>採用</button>
+                  </li>
+                ))}
+              </ul>}
+            </div>
           </section> : view === 'tls' ? <section className="workspace">
             <div className="workspace-heading"><div><span className="section-label">受信任 TLS 憑證</span><h1>TLS 與網域</h1></div></div>
             {error && <p role="alert" className="form-error">{error}</p>}

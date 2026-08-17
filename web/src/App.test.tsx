@@ -291,4 +291,35 @@ describe('管理面板登入', () => {
 			body: JSON.stringify({ bot_token: '123456:ABC-def' }),
 		})
 	})
+
+	it('擁有者可搜尋 REALITY 目標並採用結果', async () => {
+		document.cookie = 'vpn_csrf_token=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA; Path=/'
+		const coreSettings = {
+			configured: true, listen_ipv4: '203.0.113.10', listen_ipv6: '2001:db8::10',
+			vless_port: 443, hysteria2_port: 443, tuic_port: 8443, anytls_port: 8443,
+			tls_server_name: 'vpn.example.com', tls_certificate_path: '/run/tls/fullchain.pem', tls_key_path: '/run/tls/privkey.pem',
+			reality_server: '', reality_server_port: 443, reality_short_id: '0123456789abcdef',
+			stats_listen: '127.0.0.1:10085', allow_ipv4_outbound: false, has_reality_private_key: true,
+		}
+		const fetchMock = vi.fn()
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ telegram_id: 77, role: 'owner', root: true }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ users: [] }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => coreSettings })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'running' }) })
+			.mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'completed', targets: [{ domain: 'www.example.com', tls13: true, latency_ms: 42 }] }) })
+		vi.stubGlobal('fetch', fetchMock)
+		const user = userEvent.setup()
+		render(<App />)
+		await user.click(await screen.findByRole('button', { name: 'VPN 與網路' }))
+		expect(await screen.findByRole('heading', { name: 'VPN 與網路' })).toBeInTheDocument()
+		await user.click(screen.getByRole('button', { name: '搜尋 REALITY 目標' }))
+		expect(fetchMock).toHaveBeenCalledWith('/api/settings/reality/search', {
+			method: 'POST', credentials: 'include',
+			headers: { 'X-CSRF-Token': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' },
+		})
+		expect(await screen.findByRole('button', { name: '採用 www.example.com' })).toBeInTheDocument()
+		expect(screen.getByText(/42\.0/)).toBeInTheDocument()
+		await user.click(screen.getByRole('button', { name: '採用 www.example.com' }))
+		expect(screen.getByRole('textbox', { name: 'REALITY 目標網域' })).toHaveValue('www.example.com')
+	})
 })
