@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/auth"
@@ -41,6 +42,12 @@ type SubscriptionRenderer interface {
 type LoginProtection struct {
 	SourceIPs SourceIPResolver
 	Limiter   *LoginRateLimiter
+	Auditor   LoginAuditor
+	Now       func() time.Time
+}
+
+type LoginAuditor interface {
+	RecordLoginAttempt(ctx context.Context, telegramID int64, sourceIP netip.Addr, success bool, at time.Time) error
 }
 
 func NewHandler(readiness ReadinessProbe, loginExchangers ...LoginExchanger) http.Handler {
@@ -131,7 +138,7 @@ func newHandler(readiness ReadinessProbe, login LoginExchanger, sessions Session
 		writeHealth(response, http.StatusOK, "ready")
 	})
 	if login != nil {
-		mux.HandleFunc("POST /api/auth/login", adminLoginHandler(login, protection))
+		mux.HandleFunc("POST /api/auth/login", adminLoginHandler(login, sessions, protection))
 	}
 	if sessions != nil {
 		mux.HandleFunc("GET /api/auth/me", adminIdentityHandler(sessions))
@@ -197,7 +204,7 @@ func subscriptionHandler(renderer SubscriptionRenderer) http.HandlerFunc {
 	}
 }
 
-func adminLoginHandler(exchanger LoginExchanger, protection *LoginProtection) http.HandlerFunc {
+func adminLoginHandler(exchanger LoginExchanger, sessions SessionManager, protection *LoginProtection) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		mediaType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
 		if err != nil || mediaType != "application/json" {
@@ -219,9 +226,13 @@ func adminLoginHandler(exchanger LoginExchanger, protection *LoginProtection) ht
 			return
 		}
 		var attempt *LoginAttempt
+		sourceIP := SourceIPResolver{}.Resolve(request)
+		if protection != nil {
+			sourceIP = protection.SourceIPs.Resolve(request)
+		}
 		if protection != nil && protection.Limiter != nil {
 			var allowed bool
-			attempt, allowed = protection.Limiter.Begin(protection.SourceIPs.Resolve(request), input.TelegramID)
+			attempt, allowed = protection.Limiter.Begin(sourceIP, input.TelegramID)
 			if !allowed {
 				response.Header().Set("Retry-After", "900")
 				writeError(response, http.StatusTooManyRequests, "login_rate_limited")
@@ -231,7 +242,21 @@ func adminLoginHandler(exchanger LoginExchanger, protection *LoginProtection) ht
 		sessionToken, csrfToken, err := exchanger.Exchange(request.Context(), input.TelegramID, input.Code)
 		if err != nil {
 			attempt.Complete(false)
+			if !recordLoginAttempt(request.Context(), protection, input.TelegramID, sourceIP, false) {
+				writeError(response, http.StatusServiceUnavailable, "login_audit_failed")
+				return
+			}
 			writeError(response, http.StatusUnauthorized, "login_invalid")
+			return
+		}
+		if !recordLoginAttempt(request.Context(), protection, input.TelegramID, sourceIP, true) {
+			attempt.Complete(false)
+			if sessions != nil {
+				revokeContext, cancel := context.WithTimeout(context.WithoutCancel(request.Context()), 2*time.Second)
+				_ = sessions.Revoke(revokeContext, sessionToken)
+				cancel()
+			}
+			writeError(response, http.StatusServiceUnavailable, "login_audit_failed")
 			return
 		}
 		attempt.Complete(true)
@@ -241,6 +266,19 @@ func adminLoginHandler(exchanger LoginExchanger, protection *LoginProtection) ht
 			CSRFToken string `json:"csrf_token"`
 		}{CSRFToken: csrfToken})
 	}
+}
+
+func recordLoginAttempt(ctx context.Context, protection *LoginProtection, telegramID int64, sourceIP netip.Addr, success bool) bool {
+	if protection == nil || protection.Auditor == nil {
+		return true
+	}
+	now := time.Now
+	if protection.Now != nil {
+		now = protection.Now
+	}
+	auditContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	return protection.Auditor.RecordLoginAttempt(auditContext, telegramID, sourceIP, success, now().UTC()) == nil
 }
 
 func adminIdentityHandler(sessions SessionManager) http.HandlerFunc {
