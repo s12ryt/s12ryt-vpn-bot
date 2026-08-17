@@ -210,6 +210,19 @@ func run() error {
 	if realitySearchService == nil {
 		return errors.New("reality search service options are invalid")
 	}
+	realityHealthStore := postgres.NewRealityHealthStore(transactionRunner, pool)
+	realityHealthMonitor, err := buildRealityHealthMonitor(realityHealthRuntimeDependencies{
+		targets:    realityHealthStore,
+		prober:     realityProber,
+		recorder:   realityHealthStore,
+		recipients: authStore,
+		sender:     swapAwareBotClient,
+		audit:      auditStore,
+		now:        time.Now,
+	})
+	if err != nil {
+		return err
+	}
 	application, err := buildApplicationWithOptions(
 		signalContext,
 		configuration,
@@ -323,6 +336,7 @@ func run() error {
 	trafficError := make(chan error, 1)
 	quotaSweepError := make(chan error, 1)
 	tlsError := make(chan error, 1)
+	realityHealthError := make(chan error, 1)
 	go func() {
 		slog.Info("HTTP server listening", "address", server.Addr)
 		serverError <- server.ListenAndServe()
@@ -344,6 +358,9 @@ func run() error {
 	}()
 	go func() {
 		tlsError <- tlsCoordinator.Run(signalContext, nil)
+	}()
+	go func() {
+		realityHealthError <- realityHealthMonitor.Run(signalContext, nil)
 	}()
 
 	select {
@@ -379,6 +396,11 @@ func run() error {
 	case err := <-tlsError:
 		if err == nil {
 			return errors.New("TLS renewal coordinator stopped unexpectedly")
+		}
+		return err
+	case err := <-realityHealthError:
+		if err == nil {
+			return errors.New("REALITY health monitor stopped unexpectedly")
 		}
 		return err
 	case err := <-serverError:

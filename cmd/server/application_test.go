@@ -224,6 +224,63 @@ func TestBuildApplicationRejectsMissingBackupSettingsManagement(t *testing.T) {
 	}
 }
 
+func TestBuildRealityHealthMonitorRequiresAllDependencies(t *testing.T) {
+	dependencies := realityHealthRuntimeDependencies{
+		targets:    &applicationRealityHealthStoreStub{},
+		prober:     &applicationRealityProberStub{},
+		recorder:   &applicationRealityHealthStoreStub{},
+		recipients: &applicationAdministratorRecipientStub{},
+		sender:     &applicationRealityMessageSenderStub{},
+		audit:      &applicationRealityHealthAuditStub{},
+		now:        time.Now,
+	}
+	if monitor, err := buildRealityHealthMonitor(dependencies); err != nil || monitor == nil {
+		t.Fatalf("buildRealityHealthMonitor() = (%v, %v)", monitor, err)
+	}
+	dependencies.recorder = nil
+	if _, err := buildRealityHealthMonitor(dependencies); err == nil {
+		t.Fatal("buildRealityHealthMonitor() accepted missing recorder")
+	}
+}
+
+type applicationRealityHealthStoreStub struct{}
+
+func (*applicationRealityHealthStoreStub) CurrentRealityTarget(context.Context) (string, error) {
+	return "www.example.com", nil
+}
+
+func (*applicationRealityHealthStoreStub) RecordRealityHealth(context.Context, string, bool, time.Time) (reality.HealthTransition, error) {
+	return reality.HealthTransitionNone, nil
+}
+
+func (*applicationRealityHealthStoreStub) AcknowledgeRealityHealthNotification(context.Context, string, reality.HealthTransition, time.Time) error {
+	return nil
+}
+
+type applicationRealityProberStub struct{}
+
+func (*applicationRealityProberStub) Probe(_ context.Context, domain string) (reality.Target, error) {
+	return reality.Target{Domain: domain, TLS13: true, Latency: time.Millisecond}, nil
+}
+
+type applicationAdministratorRecipientStub struct{}
+
+func (*applicationAdministratorRecipientStub) ActiveAdministratorIDs(context.Context) ([]int64, error) {
+	return []int64{1}, nil
+}
+
+type applicationRealityMessageSenderStub struct{}
+
+func (*applicationRealityMessageSenderStub) SendMessage(context.Context, int64, string) error {
+	return nil
+}
+
+type applicationRealityHealthAuditStub struct{}
+
+func (*applicationRealityHealthAuditStub) RecordRealityHealthNotification(context.Context, string, bool, int, int, time.Time) error {
+	return nil
+}
+
 type applicationManagementSettingsWithoutBackupStub struct {
 	applicationManagementSettingsWithoutRealitySearchStub
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/httpapi"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/postgres"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/qualification"
+	"github.com/s12ryt/s12ryt-vpn-bot/internal/reality"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/singbox"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/telegram"
 	"github.com/s12ryt/s12ryt-vpn-bot/internal/trafficrunner"
@@ -65,6 +66,16 @@ type coreRuntimeDependencies struct {
 	notifier  coreworker.Notifier
 }
 
+type realityHealthRuntimeDependencies struct {
+	targets    reality.RealityTargetProvider
+	prober     reality.Prober
+	recorder   reality.RealityHealthRecorder
+	recipients reality.RealityAdministratorRecipients
+	sender     reality.RealityMessageSender
+	audit      reality.RealityHealthAuditRecorder
+	now        func() time.Time
+}
+
 type coreSettingsLoader interface {
 	Load(context.Context) (singbox.Settings, error)
 }
@@ -99,6 +110,18 @@ func buildCoreWorker(dependencies coreRuntimeDependencies) (*coreworker.Worker, 
 		return nil, errors.New("core worker dependencies are required")
 	}
 	return coreworker.New(dependencies.store, dependencies.snapshot, dependencies.installer, dependencies.notifier), nil
+}
+
+func buildRealityHealthMonitor(dependencies realityHealthRuntimeDependencies) (*reality.HealthMonitor, error) {
+	if dependencies.targets == nil || dependencies.prober == nil || dependencies.recorder == nil ||
+		dependencies.recipients == nil || dependencies.sender == nil || dependencies.audit == nil || dependencies.now == nil {
+		return nil, errors.New("REALITY health monitor dependencies are required")
+	}
+	notifier, err := reality.NewTelegramHealthNotifier(dependencies.recipients, dependencies.sender, dependencies.audit, dependencies.now)
+	if err != nil {
+		return nil, err
+	}
+	return reality.NewHealthMonitor(dependencies.targets, dependencies.prober, dependencies.recorder, notifier, dependencies.now)
 }
 
 func buildRecheckScheduler(dependencies recheckRuntimeDependencies) (*qualification.RecheckScheduler, error) {
