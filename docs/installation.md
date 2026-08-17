@@ -41,7 +41,7 @@ export VERIFY_EXTERNAL_EVIDENCE_FILE='/root/vpn-acceptance-evidence.json'
 
 腳本會實際呼叫 Telegram `getMe` 與 `getChatMember`，確認 Bot 是資格群組管理員；驗證 Web live/ready、TLS chain與名稱、私人訂閱四協定／雙棧結構、sing-box config、容器與受限核心控制／traffic spool 掛載。訂閱 URL 只寫入權限受限的暫存 curl config，離開時刪除。腳本最後會驗證外部測試證據；缺少證據或任一項未通過時會以非零狀態結束，不會把局部結構檢查誤報成完整驗收。
 
-外部客戶端與負載測試完成後，建立不含 token、密碼或憑證的 JSON manifest。每個 `evidence` 應指向保存於部署方受控位置的測試輸出、監控快照或變更紀錄：
+外部客戶端與負載測試完成後，建立不含 token、密碼或憑證的 JSON manifest。每個 `evidence` 必須是相對於 manifest 所在目錄的安全路徑，指向實際存在、非 symlink 的測試輸出、監控快照或變更紀錄；絕對路徑、`..` 與經父層 symlink 逃出該目錄的引用都會被拒絕：
 
 ```json
 {

@@ -65,3 +65,18 @@ func TestPostDeployCheckCannotReportCompleteWithoutExternalEvidence(t *testing.T
 		t.Fatal("post-deploy checker must fail closed instead of succeeding with an incomplete verification notice")
 	}
 }
+
+func TestPostDeployCheckVerifiesReferencedEvidenceFiles(t *testing.T) {
+	contents := string(readRepositoryFile(t, filepath.Join("scripts", "post-deploy-check.sh")))
+	for _, required := range []string{
+		"realpath -e",
+		"evidence_root",
+		"evidence_path",
+		"外部驗收 evidence 路徑不安全",
+		"外部驗收 evidence 檔案不存在",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Errorf("post-deploy checker missing evidence file verification %q", required)
+		}
+	}
+}

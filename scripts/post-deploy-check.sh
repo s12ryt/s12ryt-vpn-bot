@@ -7,7 +7,7 @@ fail() { printf '驗收失敗：%s\n' "$1" >&2; exit 1; }
 pass() { printf '通過：%s\n' "$1"; }
 require_cmd() { command -v "$1" >/dev/null 2>&1 || fail "缺少必要指令：$1"; }
 
-for command_name in docker curl openssl grep base64 jq; do require_cmd "$command_name"; done
+for command_name in docker curl openssl grep base64 jq realpath; do require_cmd "$command_name"; done
 [[ -f .env ]] || fail "找不到 .env"
 set -a
 # shellcheck disable=SC1091
@@ -75,6 +75,9 @@ docker exec s12ryt-sing-box /usr/local/bin/sing-box version >/dev/null || fail "
 pass 'sing-box 核心設定'
 
 [[ -f "$VERIFY_EXTERNAL_EVIDENCE_FILE" && ! -L "$VERIFY_EXTERNAL_EVIDENCE_FILE" ]] || fail "外部驗收證據必須是一般檔案且不可為符號連結"
+manifest_path="$(realpath -e -- "$VERIFY_EXTERNAL_EVIDENCE_FILE")" || fail "外部驗收證據檔案不存在"
+evidence_root="$(dirname -- "$manifest_path")"
+evidence_prefix="${evidence_root%/}/"
 jq -e '
   . as $root |
   ($root | type == "object") and
@@ -93,7 +96,21 @@ jq -e '
     "concurrent_connections_600"
   ] | all(. as $name |
     ($root.checks[$name].passed == true) and
-    ($root.checks[$name].evidence | type == "string" and length > 0)
+    ($root.checks[$name].evidence |
+      type == "string" and
+      test("^[A-Za-z0-9][A-Za-z0-9._/-]*$") and
+      (contains("//") | not) and
+      (split("/") | all(length > 0 and . != "." and . != ".."))
+    )
   ))
-' "$VERIFY_EXTERNAL_EVIDENCE_FILE" >/dev/null || fail "外部驗收證據不完整"
+' "$manifest_path" >/dev/null || fail "外部驗收證據不完整"
+
+while IFS= read -r evidence_path; do
+  evidence_file="$(realpath -e -- "$evidence_root/$evidence_path")" || fail "外部驗收 evidence 檔案不存在：$evidence_path"
+  case "$evidence_file" in
+    "$evidence_prefix"*) ;;
+    *) fail "外部驗收 evidence 路徑不安全：$evidence_path" ;;
+  esac
+  [[ -f "$evidence_file" && ! -L "$evidence_root/$evidence_path" ]] || fail "外部驗收 evidence 檔案不存在：$evidence_path"
+done < <(jq -r '.checks | to_entries[] | .value.evidence' "$manifest_path")
 pass '外部四協定雙棧、IPv6-only／IPv4 出站、計量、配額、重啟與600連線驗收證據'
