@@ -31,6 +31,29 @@ func TestReadmeDoesNotPresentDevelopmentBuildAsProductionReady(t *testing.T) {
 	}
 }
 
+func TestReadmeListsBothRemainingExternalBlockers(t *testing.T) {
+	contents := string(readRepositoryFile(t, "README.md"))
+	for _, required := range []string{
+		"上游 sing-box stable 依賴漏洞阻擋",
+		"實際 Linux 主機",
+		"真實 Telegram",
+		"ACME",
+	} {
+		if !strings.Contains(contents, required) {
+			t.Fatalf("README.md must identify remaining external blocker %q", required)
+		}
+	}
+
+	for _, stale := range []string{
+		"安裝精靈、ACME 自動化、備份／還原、完整設定頁",
+		"GitHub Actions 仍需在 repository 建立後實際執行",
+	} {
+		if strings.Contains(contents, stale) {
+			t.Fatalf("README.md must not retain completed-work claim %q", stale)
+		}
+	}
+}
+
 func TestReverseProxyGuideCoversSupportedTopologies(t *testing.T) {
 	contents := string(readRepositoryFile(t, filepath.Join("docs", "reverse-proxy.md")))
 	for _, required := range []string{"Nginx", "Caddy", "Cloudflare Tunnel", "127.0.0.1:35699", "TCP 443", "X-Forwarded-For", "TRUSTED_PROXY_CIDRS"} {

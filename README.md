@@ -30,6 +30,7 @@
 ## 尚未完成
 
 - release workflow 的首次真實發佈與 digest 驗收（目前被上游 sing-box stable 依賴漏洞阻擋）。
+- 在實際 Linux 主機以 Docker、真實 Telegram Bot／群組與 ACME 網域完成部署後驗收；自動檢查腳本已備於 [`scripts/post-deploy-check.sh`](scripts/post-deploy-check.sh)，但本機沒有可執行此驗收的環境與秘密。
 
 ### 套件可見度（首次成功發佈後必做）
 
