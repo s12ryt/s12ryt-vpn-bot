@@ -32,7 +32,8 @@
 - [x] 完成 TLS 設定加密持久化（mode／domain／challenge／Email／CA 清單／條款／DuckDNS token 密文）、簽發與失敗狀態交易記錄、reconcile outbox 與稽核；ACME 憑證檔原子安裝、30 天續期門檻協調器與第七個 server goroutine 正式接線。
 - [x] 完成 TLS 未核發閘門：核心 active 快照與訂閱輸出在 `tls_settings.state='issued'` 且未過期前一律拒絕輸出節點；owner TLS API（GET/PUT `/api/settings/tls`，token write-only）與 Web「TLS 與網域」頁含狀態、條款同意與 DuckDNS token 管理。
 - [x] 完成 Web 營運總覽：`GET /api/overview`（管理者可讀，聚合使用者統計、TLS 已核發、核心已設定）與「總覽」頁含未完成設定警示。
-- [ ] Bot Token 安全熱切換與 REALITY 自動目標搜尋。
+- [x] 完成 Bot Token 安全熱切換：`bot_settings` AEAD 密文保存（DB 優先於環境值）、`getMe` 驗證同一 Bot、先持久化再以 SwapAwareClient 原子替換 live client、owner API／Web 頁與稽核。
+- [ ] REALITY 自動目標搜尋。
 - [x] 建立非 root 多階段應用／控制器映像與 Compose 安全拓撲契約；PostgreSQL 僅綁 loopback，只有 sidecar 掛載 Docker socket。
 - [x] 建立不含真實秘密的 `.env.example`，要求明確資料庫 URL、根金鑰產生方式與不可變 sing-box image digest。
 - [ ] 完成 Telegram 使用者命令、inline 審批與管理操作。

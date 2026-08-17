@@ -1,5 +1,13 @@
 # 操作與驗證紀錄
 
+## 2026-08-17：Bot Token 熱切換
+
+- `telegram.SwapAwareClient`：mutex 保護的原子委派 client，實作所有既有窄介面（UpdateClient/GetMe/GetChatMember/SendMessage/SendPhoto/SendApprovalRequest/AnswerCallbackQuery）；`Swap` 以可注入 verifier（正式傳真 `GetMe`）驗證候選 token 屬同一 Bot（同 ID、IsBot、非空 username），失敗絕不替換；`ErrBotIdentityChanged`／`ErrBotVerificationFailed` 為封閉 sentinel。
+- migration 011 `bot_settings`：token nonce/ciphertext 配對 CHECK；`BotSettingsStore.Save` 以 `telegram/bot-token` 用途 AEAD 密文＋`bot.token.update` 稽核（無明文）；`Token` 解密（未設定回 `ErrBotTokenNotConfigured`）；`Overview` 只讀 username/updated_at。
+- httpapi `GET/PUT /api/settings/bot`：owner-only（`PermissionManageSecrets`）＋CSRF＋strict JSON；錯誤映射封閉代碼（`bot_identity_changed`／`bot_verification_failed`／`bot_settings_operation_failed`）；初次 GREEN 曾把路由誤掛在 coreSettings guard 內（同 TLS 教訓），已改獨立 guard。
+- `cmd/server.botTokenManager`：順序固定為 驗證→持久化→Swap（持久化失敗不換 live client，避免重啟回退到已撤銷 token）；main 以 `bot-token-encryption` HKDF 金鑰建 store、DB token 優先於環境 bootstrap、啟動 `getMe` 身分傳入 wrapper、下游（recheck lookup/rule manager/approval/notifier/buildApplication/traffic notifier）全部改用 wrapper，避免殘留舊 token 引用。
+- Web「Bot 與 Token」頁：username／上次輪替、write-only token、二次確認、固定錯誤訊息；測試需 stub `window.confirm`。Vitest 12/12、ESLint、Vite build、全量 Go tests/vet、Windows/Linux 交叉 build 全綠。
+
 ## 2026-08-17：TLS 未核發閘門與設定頁
 
 - 契約「成功前不得輸出任何 VPN 節點」落地：`CredentialStore.ListActive` 再 CROSS JOIN `tls_settings`，要求 `state='issued' AND certificate_expires_at > now()`；`subscription.Service.WithTLSReadiness` 在 Render 前檢查，未核發回 `ErrTLSNotReady`（HTTP 404），readiness 錯誤原樣傳播。`TLSSettingsStore.Issued/TLSIssued` 輕量查詢不含密文欄位。
