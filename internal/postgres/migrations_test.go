@@ -43,6 +43,9 @@ func TestMigrateAppliesUnseenMigrationAndRecordsVersion(t *testing.T) {
 		"token_ciphertext",
 		"CREATE TABLE IF NOT EXISTS backup_settings",
 		"retention_days",
+		"CREATE TABLE IF NOT EXISTS reality_health",
+		"last_checked_at",
+		"notification_pending",
 		"INSERT INTO schema_migrations",
 		"pg_advisory_unlock",
 	} {
